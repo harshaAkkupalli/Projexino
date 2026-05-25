@@ -1,0 +1,19 @@
+{
+  "short_name": "Projexino",
+  "name": "Projexino — Team & Project Hub",
+  "description": "Projexino Solutions Pvt Ltd — Internal project, task, lead, intern & team management hub with AI assistance.",
+  "icons": [
+    {
+      "src": "https://customer-assets.emergentagent.com/job_projexino-hub/artifacts/k85zxnvo_cropped-projexino-scaled-1-768x358%20%281%29.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/m/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0F2042",
+  "background_color": "#FFF1E0"
+}

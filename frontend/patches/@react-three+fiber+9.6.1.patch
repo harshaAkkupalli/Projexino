@@ -1,0 +1,42 @@
+diff --git a/node_modules/@react-three/fiber/dist/events-583399dd.cjs.prod.js b/node_modules/@react-three/fiber/dist/events-583399dd.cjs.prod.js
+index f3834fa..138c0f1 100644
+--- a/node_modules/@react-three/fiber/dist/events-583399dd.cjs.prod.js
++++ b/node_modules/@react-three/fiber/dist/events-583399dd.cjs.prod.js
+@@ -405,6 +405,9 @@ function applyProps(object, props) {
+     // Don't mutate reserved keys
+     if (RESERVED_PROPS.includes(prop)) continue;
+ 
++    // Skip visual-edits / dev meta props (x-*)
++    if (prop.charCodeAt(0) === 120 && prop.charCodeAt(1) === 45) continue;
++
+     // Deal with pointer events, including removing them if undefined
+     if (instance && EVENT_REGEX.test(prop)) {
+       if (typeof value === 'function') instance.handlers[prop] = value;else delete instance.handlers[prop];
+diff --git a/node_modules/@react-three/fiber/dist/events-b389eeca.esm.js b/node_modules/@react-three/fiber/dist/events-b389eeca.esm.js
+index 76f308c..09c5c61 100644
+--- a/node_modules/@react-three/fiber/dist/events-b389eeca.esm.js
++++ b/node_modules/@react-three/fiber/dist/events-b389eeca.esm.js
+@@ -380,6 +380,9 @@ function applyProps(object, props) {
+     // Don't mutate reserved keys
+     if (RESERVED_PROPS.includes(prop)) continue;
+ 
++    // Skip visual-edits / dev meta props (x-*)
++    if (prop.charCodeAt(0) === 120 && prop.charCodeAt(1) === 45) continue;
++
+     // Deal with pointer events, including removing them if undefined
+     if (instance && EVENT_REGEX.test(prop)) {
+       if (typeof value === 'function') instance.handlers[prop] = value;else delete instance.handlers[prop];
+diff --git a/node_modules/@react-three/fiber/dist/events-f19bcc32.cjs.dev.js b/node_modules/@react-three/fiber/dist/events-f19bcc32.cjs.dev.js
+index 07d45d4..aba869f 100644
+--- a/node_modules/@react-three/fiber/dist/events-f19bcc32.cjs.dev.js
++++ b/node_modules/@react-three/fiber/dist/events-f19bcc32.cjs.dev.js
+@@ -405,6 +405,9 @@ function applyProps(object, props) {
+     // Don't mutate reserved keys
+     if (RESERVED_PROPS.includes(prop)) continue;
+ 
++    // Skip visual-edits / dev meta props (x-*)
++    if (prop.charCodeAt(0) === 120 && prop.charCodeAt(1) === 45) continue;
++
+     // Deal with pointer events, including removing them if undefined
+     if (instance && EVENT_REGEX.test(prop)) {
+       if (typeof value === 'function') instance.handlers[prop] = value;else delete instance.handlers[prop];
