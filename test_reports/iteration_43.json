@@ -1,0 +1,33 @@
+{
+  "summary": "Iter 43 verified all 5 changes end-to-end: CS composer Save/Test/Send hit /api/email/send (no mailto), Preview modal is full-screen, Snapshot button removed from drawer, Engineering projects section renders (empty-state + eng-projects testid), PATCH /projects RBAC allows manager + assigned intern to change status. 10/10 backend tests pass.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter43_cs_email_eng.py",
+    "/app/test_reports/pytest/iter43_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ClientsHub.jsx now around 750 lines after the rewrite — still readable, but EngineeringProjectsSection (~560-600) + ProjectTasksPanel (~600-750) + the CS composer would be a clean place to split into /pages/portal/clients/* sub-components if it grows further.",
+    "POST /api/clients/{cid}/cs-email/save is upsert-by-client_id (one draft per client). If two CS reps draft for the same client in different tabs, the second save silently overwrites the first. Consider returning the previous updated_at to allow optimistic-lock or at least surface 'last edited by' in the chip.",
+    "GET /api/clients/{cid}/cs-email/draft returns an empty {} when no draft exists. Frontend treats that fine, but the response would be cleaner as 404 or {present: false} for typing/contract clarity.",
+    "linked_project_tasks fetches up to 500 tasks unconditionally. For very large projects this could be slow; add pagination or limit + total separately.",
+    "linked_project_ai_summary builds the recent_lines from tasks[:12] but the cost/token estimate is OK; consider caching the AI summary per (pid, last-task-updated-at) to avoid re-paying the LLM call when nothing changed.",
+    "Project status validation: 'review' is NOT a valid project status (planning/in_progress/on_hold/completed/cancelled). The 'task status' (todo/in_progress/review/done/blocked) used in counts of linked_project_tasks may confuse readers — consider renaming variables or documenting that they are TASK statuses, not project statuses.",
+    "PATCH /projects/{id} silently drops unauthorised fields for assigned-only users then 403s only if NOTHING remains. If they include a status update + a name update in the same PATCH, the name is silently dropped (no warning). Consider returning 200 with a 'dropped_fields' list, or 403 with a clear message naming the dropped fields."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter43_cs_email_eng.py (new)"
+  ],
+  "success_rate": { "backend": "100% (10/10)", "frontend": "100% on flows tested" },
+  "test_credentials": "admin@projexino.com / Projexino@2026 ; manager@projexino.com / Manager@2026 ; intern@projexino.com / Intern@2026",
+  "seed_data_creation": "Backend pytest creates TEST_QAClient_iter43 (client) + TEST_QA_Phase_E_iter43 (project) and deletes both in teardown. Frontend tests reused the existing 'naeema' client and saved a draft with subject 'TESTPD QA iter43' — draft remains in db.cs_email_drafts for that client (one document, not noisy).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "ClientsHub testids in use: client-card-{cid}, client-drawer, client-drawer-close (close X icon), client-delete, eng-projects (section), eng-row-{pid}, eng-open-{pid}, eng-tasks-panel, eng-tasks-list, eng-ai-summary, eng-ai-preview, eng-ai-send. CS composer testids: cs-client-select, cs-draft, cs-save, cs-test, cs-send-client, cs-preview-btn, cs-preview-modal, cs-subject-input, cs-greeting, cs-closing, cs-intro, cs-highlight-{idx}, cs-ask. IMPORTANT: cs-save/test/send/preview-btn/subject-input only render AFTER a draft is loaded into state — either by clicking cs-draft (calls AI ~6-8s) or by selecting a client whose draft was previously saved (auto-loads via GET /clients/{cid}/cs-email/draft). The preview modal is full-screen (h-[92vh] max-w-5xl). 'Customer Success' is a top tab next to 'Clients' on /app/clients. Send test surfaces toast 'Test email sent to admin@projexino.com' when Gmail is connected on this tenant (verified live). Backend: POST /clients/{cid}/cs-email/save returns {ok:true,saved_at}; GET returns {} when no draft. PATCH /projects/{id} 422s on invalid status enum (e.g. 'review' is a task status, not project) — use 'planning'/'in_progress'/'on_hold'/'completed'/'cancelled'.",
+  "rca_of_the_issue": "Initial pytest failure was test-side: I used 'review' as a project status (it's a TASK status). After switching to 'on_hold', intern-assigned status update returned 200, confirming RBAC works. Frontend send-test using /api/email/send (not mailto) confirmed via network capture: POST https://.../api/email/send fired and toast.success rendered. No issues attributable to the implementation."
+}

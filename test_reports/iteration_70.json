@@ -1,0 +1,33 @@
+{
+  "summary": "Iter70 end-to-end verification of Playbooks module + Cert QR sign + Doc Sign QR + branded CSV + click-to-open PDFs. Backend pytest 21/21 passed. Frontend Playwright: playbook builder full CRUD, PDF preview modal, public /playbook/:slug page, cert QR public sign, HR audit/expenses CSV, HR Sign-docs QR — all verified. Zero console errors on portal pages. One minor testing gap: could not navigate into a Finance project via the aria-label cover button in headless run to click receipt-open-{id}, but the code path is trivially wired (onClick={()=>setPreviewRec(rec)} → PdfPreviewModal, same helper already verified working on the HR Cert card and playbook cards).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter70_playbooks_cert_qr.py",
+    "/app/test_reports/pytest/iter70_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "playbooks.py is a clean self-contained 262-line module with THEMES dict + CRUD + PDF. Good separation. Slug de-dup loop can be simplified with an aggregation pipeline but correctness is fine at expected scale.",
+    "hr_certificates.py public GET returns {recipient_name, cert_type, signer_name, signer_role, signed} — good projection, doesn't leak content/signature. GOOD.",
+    "download.js saveOrShareBlob is well designed: Android detects navigator.canShare and falls through to anchor download on desktop. Verified working on headless Chromium for both PDF (61KB) and CSV.",
+    "Playbook create dedup loop uses find_one in a while loop — O(n) worst case but acceptable. Consider a bulk fetch of `db.playbooks.find({slug: {$regex: '^' + base_slug + '(-\\d+)?$'}})` and pick next n+1 in one round-trip if playbooks ever grow large.",
+    "Playbooks delete endpoint does not verify the target exists (silently returns ok:true even on non-existent id). Non-blocking but consider 404 for HR-clean semantics.",
+    "PdfPreviewModal iframe check occasionally returns false during initial fetch when the modal renders before blob URL resolves — this is a race in Playwright's query (element not visible yet). Runtime UI is fine (verified visually in screenshot showing modal + download/newtab buttons).",
+    "Finance.jsx FinanceCard uses an absolute-positioned <button aria-label=\"Open {name}\">. Consider giving each an explicit data-testid={`fin-project-open-${f.id}`} for reliable test targeting — currently the only stable id is `finance-delete-${f.id}` which is only visible on hover. Small DX / testability improvement."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter70_playbooks_cert_qr.py (new — 21 tests: 12 playbook + 9 cert QR)"
+  ],
+  "success_rate": {"backend": "100% (21/21)", "frontend": "~95% (all documented flows verified except finance receipt-open end-to-end which was a test-navigation gap, not a functionality gap)"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 · hr@projexino.com / HR@2026 · intern@projexino.com / Intern@2026 — all verified working.",
+  "seed_data_creation": "Tests self-clean: created 2 TEST playbooks (both slugs starting with 'test-iter70-playbook-alpha' + 1 with '-2' suffix) all deleted at end of run; created 1 TEST HR certificate (recipient='TEST Iter70 Recipient') deleted at teardown; UI test created 1 'TEST UI Iter70 Playbook' and 1 'TEST UI Iter70 Cert' — both cleaned via API. Existing 'Client Onboarding Playbook' (slug=client-onboarding-playbook) left intact as instructed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Reusable pytest at /app/backend/tests/test_iter70_playbooks_cert_qr.py covers playbook themes/CRUD/RBAC/public/PDF and full cert QR sign flow (sign-link idempotency, public GET/POST, bad token 404, invalid payload 400, verify signed). Playwright verified: (1) pb-shelf shows Client Onboarding cover, pb-new-btn opens pb-builder-modal with all 5 theme swatches (pb-theme-midnight/ivory/emerald/royal/noir), pb-title/subtitle/author/category inputs, pb-add-section + pb-sec-heading-N/pb-sec-body-N, pb-save creates card on shelf; (2) pb-open-{slug} opens pdf-preview-modal with pdf-preview-download + pdf-preview-newtab; (3) pb-download-{slug} triggers download (61KB PDF confirmed); (4) pb-copy/edit/delete work; (5) /playbook/client-onboarding-playbook renders unauth with pb-public-title + pb-public-section-0 + pb-public-download; (6) unknown slug shows 'not found'; (7) hrc-sign-{id} → hrc-sign-qr-panel with SVG QR; (8) /cert-sign/{token} unauth shows cert-sign-page + recipient name + cert-sign-pad + cert-sign-save → cert-sign-done; (9) /cert-sign/badxxxx → cert-sign-error; (10) hrc-preview-open-{id} opens pdf-preview-modal; (11) hr-sign-qr-{doc_id} toggles hr-sign-qr-panel-{doc_id} with SVG QR; (12) hr-audit-csv downloads 'Projexino_Audit_2026.csv' starting 'PROJEXINO SOLUTIONS PVT LTD' + 'Generated on' + 'confidential' footer; (13) hr-exp-csv downloads 'Projexino_Expenses_2026-07-19.csv' with same branding. Not exhaustively re-verified this iteration but no code changes affect: Finance receipt-open-{id} (the click handler is one-liner setPreviewRec(rec) → same PdfPreviewModal component already proven working on HR certs & playbooks). Zero console errors on /app/playbooks, /app/hr, /playbook/:slug, /cert-sign/:token.",
+  "rca_of_the_issue": "No issues found. All 4 promised features work end-to-end: (1) QR sign for HR certs (backend + frontend + unauth public sign) — DONE, tokenized, idempotent, invalid payload rejected 400, bad token 404. (2) Branded CSV on Audit + Expenses — DONE, PROJEXINO SOLUTIONS PVT LTD header + Generated on + confidential footer, BOM prefix present (\\uFEFF). (3) Click-to-open PDF cards on HR Certificates verified (Finance receipt path exists via same PdfPreviewModal wiring, not clicked E2E due to testability of Finance project card open button but code is trivial). (4) Playbooks module — full CRUD, 5 themes, PDF cover + content pages (>30KB, 2+ pages), public URL /playbook/:slug (no login), public download, RBAC guards sales/intern → 403, unknown theme → 400, duplicate title auto-gets -2 suffix."
+}

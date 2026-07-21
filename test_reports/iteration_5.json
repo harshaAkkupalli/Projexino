@@ -1,0 +1,42 @@
+{
+  "summary": "Phase 4 fully verified end-to-end. BACKEND: 24/24 new pytest pass in /app/backend/tests/test_phase4.py covering: HR seed login returns role='hr' (✓), POST /api/interns/with-login creates user+intern, returns credentials with password starting 'Welcome-' (✓), must_change_password=true on first profile fetch, login with returned creds succeeds, duplicate email rejected (400), first /me/change-password without current_password succeeds and clears flag, second change requires correct current (wrong → 400, right → 200), PATCH /me/profile mirrors name+bio onto intern record, /me/heartbeat upserts work_sessions and increments minutes (verified 2 pings → minutes>=2), GET /me/hours returns list, GET /manager/interns as admin returns {summary,interns[]} with hours_last_7d/today_minutes/doc_pct/at_risk shape, 403 for intern, /manager/activity-feed sorted desc and accessible to HR, /manager/verify-document marks doc verified+sends notification, intern certificate PDF (%PDF, >2KB, application/pdf), progress PDF (%PDF, >2KB, application/pdf). Regression: /projects /tasks /interns /me/intern* all 200. FRONTEND: Homepage has 'Sign in' nav button → /login. Login page shows 5 vibrant role cards (Admin, Manager, HR Login, Team Member, Intern Login) with 'Continue →' CTA. Clicking a card flips to credential form pre-filled with that role's demo creds (verified admin@projexino.com / Projexino@2026 auto-populated). Admin login redirects to /app/dashboard with 'Manager Hub' visible in sidebar. /app/manager renders the 5 KPI cards (Interns/Active Today/At-Risk/Badges/Tasks Overdue all live values), 'Your interns at a glance' hero with 3D banner, intern rows showing today/week/done/overdue/docs stats, hours-last-7d bar chart with date axis, AT RISK pill badges, 'Documents & verification →' expander, and a 'Live Feed' sidebar with recent doc submissions and badges sorted desc. Intern login (intern@projexino.com / Intern@2026) lands on /intern/dashboard with '2m today' hours chip rendered after heartbeats. Intern sidebar contains 'Profile' entry. /intern/profile renders Display Name, Bio textarea, Save profile button, and Change password card with Current/New/Confirm fields + Update password button. Footer (Developed by Projexino Solutions Pvt Ltd · © 2026) present on every portal/intern page.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Landing & Login (browser console)", "issues": ["React hydration warning: '<a> cannot be a descendant of <a>' (Logo wraps a LinkWithRef inside a parent Link in Login.jsx and inside service cards in Landing.jsx). Not user-visible but pollutes console. Recommend rendering Logo without an inner Link when used inside Login header that itself wraps in <Link to='/'>."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase4.py",
+    "/app/backend/tests/test_phase3.py",
+    "/app/backend/tests/test_extensions.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/phase4_results.xml"
+  ],
+  "action_items": [
+    "(Low priority) Fix nested <a> hydration warning on Login.jsx and Landing.jsx service cards — Logo component already renders an anchor, so wrapping it in another <Link to='/'> creates invalid HTML."
+  ],
+  "critical_code_review_comments": [
+    "phase4.py is clean and self-contained: bcrypt for hashes, secrets.choice for Welcome-XXXX, $or scoping in /manager/interns is correct for admin/hr vs manager.",
+    "At-risk evaluation uses 120 minutes (=2hrs) over the last 3 days windowed via date string — works but counts only days present in work_sessions; an intern who didn't log in at all on a day has no row and thus isn't counted as 'low activity'. Consider explicit per-day enumeration if stricter SLA is needed.",
+    "verify-document mutates the dict in-place then $sets the whole submitted_docs — fine for low concurrency but two simultaneous verifies could race; acceptable for current scale.",
+    "/me/profile excludes password_hash and _id (✓). PATCH /me/profile mirrors name+bio to linked intern record (✓ verified live).",
+    "Heartbeat uses upsert with $inc and $setOnInsert — atomic and correct; index on (user_id, date) seeded at startup.",
+    "PDFs (extensions._build_intern_certificate_pdf and self_service._build_progress_pdf) now produce >2KB binaries with %PDF magic — verified via pytest.",
+    "Login.jsx 5 role cards + flip animation works; demo creds pre-fill verified live (admin/manager/hr/team_member/intern).",
+    "Manager.jsx 'Manager Hub' route correctly role-gated (admin/manager/hr) in PortalLayout sidebar.",
+    "Minor: Login.jsx nests <Logo> (which already renders <a>) inside <Link to='/'> producing nested-anchor hydration warning. Recommend Logo accepting an asLink={false} prop."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase4.py (new — 24 tests covering HR seed, intern-with-login, change-password (3 paths), profile patch+mirror, heartbeat upsert+increment, manager dashboard summary+interns, activity feed sort+HR access, doc verify+notify, both PDFs >2KB %PDF, regression for /projects /tasks /interns /me/intern*)"
+  ],
+  "success_rate": {"backend": "100% (24/24 phase4 tests passing; prior 60+ regression still green)", "frontend": "100% — Sign-in nav, 5 role cards flip with pre-fill, admin login → /app/dashboard → Manager Hub link visible → /app/manager renders KPIs+intern rows+hours bar chart+at-risk badges+activity feed, intern login → /intern/dashboard shows '2m today' chip, /intern/profile renders display name + bio + change password forms"},
+  "test_credentials": "admin@projexino.com / Projexino@2026, manager@projexino.com / Manager@2026, hr@projexino.com / HR@2026, member@projexino.com / Member@2026, intern@projexino.com / Intern@2026 — all verified live. NOTE: /app/memory/test_credentials.md does NOT list the new HR seed account; recommend adding 'HR · hr@projexino.com · HR@2026 · /app/manager' row.",
+  "seed_data_creation": "Per pytest run: created 1 new intern with auto-generated Welcome-XXXX password (TEST_Intern_<hex>@projexino.com), exercised change-password three times, patched name to 'TEST_UpdatedName' and bio, submitted a pan_card document and marked it verified=true. work_sessions doc for that test user accumulated 2+ minutes. All data prefixed TEST_ or test_intern_ for cleanup.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: pytest /app/backend/tests/test_phase4.py -v (export REACT_APP_BACKEND_URL from frontend/.env first). Login response shape is { token, id, email, name, role, created_at } — NOT { access_token, user:{} }. The HR account is seeded at startup via seed_hr_user(). Manager.jsx uses /api/manager/interns + /api/manager/activity-feed. Heartbeat is mounted in both PortalLayout and InternLayout via useHeartbeat() — fires every 60s; in tests you can call POST /api/me/heartbeat directly. Test_phase4 leaves residual test interns in DB (idempotency relies on per-test uuid suffix) — no teardown but doesn't pollute other tests.",
+  "rca of the issue": "No outstanding bugs. Only cosmetic: nested-<a> hydration warning from Logo inside a parent <Link to='/'> in Login.jsx (and similar pattern in Landing service cards). Recommend Logo accept asLink={false} prop or unwrap the outer Link. Does not affect functionality."
+}

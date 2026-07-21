@@ -1,0 +1,1185 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --pj-bg: #FAFBFD;
+  --pj-bg-2: #FFF7ED;
+  --pj-surface: #FFFFFF;
+  --pj-surface-2: #F1F5F9;
+  --pj-primary: #0F2042;
+  --pj-primary-2: #1E3A8A;
+  --pj-accent: #F97316;
+  --pj-accent-2: #EA580C;
+  --pj-text: #0F172A;
+  --pj-text-2: #475569;
+  --pj-text-3: #94A3B8;
+  --pj-border: #E2E8F0;
+
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 24 95% 53%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 24 95% 53%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 24 95% 53%;
+  --radius: 0.75rem;
+}
+
+.portal-scope { /* unchanged — portals use same light theme as marketing now */ }
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html, body, #root {
+  background: #FFF1E0;
+  color: var(--pj-text);
+  font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+  /* Use the dynamic viewport (`dvh`) so the body always sizes to the
+     *visible* area of the Android WebView, even with the URL bar / nav bar
+     in/out. `100vh` fallback for older browsers. */
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Document-level scrolling for everything. Inner overflow-y containers were
+   trapping touch scroll on Android WebView / TWA wrappers and made some
+   pages feel "locked" after login. Body scroll is the most portable. */
+html, body {
+  overflow-x: hidden;
+  /* Allow native vertical scroll on the document everywhere. */
+  overscroll-behavior-y: auto;
+  /* Kill browser back/forward navigation on horizontal scroll/swipe. */
+  overscroll-behavior-x: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+
+.font-display { font-family: 'Outfit', system-ui, sans-serif; letter-spacing: -0.02em; }
+.font-mono-pj { font-family: 'JetBrains Mono', monospace; }
+
+::selection { background: rgba(249, 115, 22, 0.25); color: #0F172A; }
+
+/* Soft warm canvas background pattern */
+.bg-canvas {
+  background:
+    radial-gradient(60% 50% at 70% 0%, rgba(249, 115, 22, 0.10), transparent 60%),
+    radial-gradient(50% 50% at 0% 30%, rgba(30, 58, 138, 0.10), transparent 60%),
+    linear-gradient(180deg, #FAFBFD 0%, #FFFFFF 40%, #FFF7ED 100%);
+}
+
+/* Per-page tinted canvases — light but never plain white */
+.bg-canvas-warm {
+  background:
+    radial-gradient(60% 50% at 75% 0%, rgba(249, 115, 22, 0.18), transparent 60%),
+    radial-gradient(45% 50% at 0% 35%, rgba(30, 58, 138, 0.12), transparent 60%),
+    linear-gradient(165deg, #FFF1E0 0%, #FFE9D2 45%, #FFE0BD 100%);
+}
+
+.bg-canvas-cool {
+  background:
+    radial-gradient(55% 50% at 85% 5%, rgba(249, 115, 22, 0.12), transparent 60%),
+    radial-gradient(50% 50% at 10% 90%, rgba(20, 184, 166, 0.18), transparent 60%),
+    linear-gradient(165deg, #E6F4F1 0%, #D6ECE6 50%, #CFE6E2 100%);
+}
+
+.bg-canvas-violet {
+  background:
+    radial-gradient(55% 50% at 10% 0%, rgba(249, 115, 22, 0.12), transparent 60%),
+    radial-gradient(60% 60% at 90% 90%, rgba(99, 102, 241, 0.20), transparent 60%),
+    linear-gradient(165deg, #ECE9FD 0%, #DDD7FA 50%, #CFC8F8 100%);
+}
+
+.bg-canvas-sky {
+  background:
+    radial-gradient(50% 50% at 85% 10%, rgba(249, 115, 22, 0.14), transparent 60%),
+    radial-gradient(55% 55% at 5% 90%, rgba(14, 165, 233, 0.22), transparent 60%),
+    linear-gradient(165deg, #DFEEFB 0%, #CFE3F7 50%, #BDDAF3 100%);
+}
+
+.bg-canvas-mint {
+  background:
+    radial-gradient(60% 50% at 80% 0%, rgba(249, 115, 22, 0.14), transparent 60%),
+    radial-gradient(50% 50% at 10% 90%, rgba(34, 197, 94, 0.18), transparent 60%),
+    linear-gradient(165deg, #E4F4E7 0%, #D5EDDA 50%, #C6E6CC 100%);
+}
+
+.bg-canvas-rose {
+  background:
+    radial-gradient(55% 50% at 90% 10%, rgba(249, 115, 22, 0.16), transparent 60%),
+    radial-gradient(50% 50% at 5% 90%, rgba(244, 63, 94, 0.18), transparent 60%),
+    linear-gradient(165deg, #FCE5E8 0%, #F9D5DA 50%, #F4C5CB 100%);
+}
+
+.bg-canvas-amber {
+  background:
+    radial-gradient(60% 50% at 80% 5%, rgba(245, 158, 11, 0.22), transparent 60%),
+    radial-gradient(50% 50% at 10% 90%, rgba(30, 58, 138, 0.10), transparent 60%),
+    linear-gradient(165deg, #FFF4D6 0%, #FFEABE 50%, #FFE1A8 100%);
+}
+
+.bg-canvas-slate {
+  background:
+    radial-gradient(60% 50% at 80% 5%, rgba(249, 115, 22, 0.14), transparent 60%),
+    radial-gradient(55% 55% at 10% 95%, rgba(30, 58, 138, 0.14), transparent 60%),
+    linear-gradient(165deg, #E2E8F0 0%, #D3DBE6 50%, #C4CEDB 100%);
+}
+
+.bg-grid-light {
+  background-image:
+    linear-gradient(rgba(15, 32, 66, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 32, 66, 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+.bg-noise {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.04 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+.glow-orange { box-shadow: 0 10px 30px rgba(249, 115, 22, 0.25), 0 0 0 1px rgba(249, 115, 22, 0.15); }
+.glow-orange-lg { box-shadow: 0 16px 60px rgba(249, 115, 22, 0.32), 0 0 0 1px rgba(249, 115, 22, 0.2); }
+.glow-blue { box-shadow: 0 12px 40px rgba(30, 58, 138, 0.18); }
+
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(15, 32, 66, 0.08);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(15, 32, 66, 0.08);
+}
+
+.glass-navy {
+  background: linear-gradient(135deg, #0F2042 0%, #1E3A8A 100%);
+  color: white;
+}
+
+.btn-primary {
+  background: var(--pj-accent);
+  color: white;
+  border-radius: 9999px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: transform 0.3s, box-shadow 0.3s, background 0.3s;
+  box-shadow: 0 10px 24px rgba(249, 115, 22, 0.3), 0 0 0 1px rgba(249, 115, 22, 0.15);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.btn-primary:hover {
+  background: var(--pj-accent-2);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 32px rgba(249, 115, 22, 0.45), 0 0 0 1px rgba(249, 115, 22, 0.25);
+}
+
+.btn-ghost {
+  color: var(--pj-primary);
+  border-radius: 9999px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  background: rgba(15, 32, 66, 0.04);
+  border: 1px solid rgba(15, 32, 66, 0.1);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.btn-ghost:hover {
+  background: rgba(15, 32, 66, 0.08);
+  border-color: rgba(249, 115, 22, 0.5);
+  color: var(--pj-accent);
+}
+
+.tag-chip {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--pj-accent);
+  background: rgba(249, 115, 22, 0.08);
+  border: 1px solid rgba(249, 115, 22, 0.22);
+  padding: 0.3rem 0.7rem;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.card-soft {
+  background: var(--pj-surface);
+  border: 1px solid var(--pj-border);
+  border-radius: 1.5rem;
+  box-shadow: 0 4px 20px -8px rgba(15, 32, 66, 0.08);
+  transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s;
+}
+.card-soft:hover {
+  transform: translateY(-4px);
+  border-color: rgba(249, 115, 22, 0.5);
+  box-shadow: 0 16px 40px -10px rgba(15, 32, 66, 0.14), 0 0 0 1px rgba(249, 115, 22, 0.15);
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translate3d(0,0,0) }
+  50% { transform: translate3d(0,-12px,0) }
+}
+.float-slow { animation: float-slow 7s ease-in-out infinite; }
+
+@keyframes pulse-orange {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(249,115,22,0.5); }
+  70% { box-shadow: 0 0 0 18px rgba(249,115,22,0); }
+}
+.pulse-orange { animation: pulse-orange 2.2s infinite; }
+
+.kanban-col { min-width: 280px; }
+.scrollbar-thin::-webkit-scrollbar { height: 8px; width: 8px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.4); border-radius: 4px; }
+
+canvas { display: block; }
+
+/* portal sidebar item */
+.side-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 0.6rem;
+  color: #475569;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.side-link:hover { background: #F1F5F9; color: #0F172A; }
+.side-link.active { background: #0F2042; color: white; }
+.side-link.active .side-icon { color: #F97316; }
+
+
+/* ============================================================
+   MOBILE-APP SHELL — Iter 16
+   Phone-frame on desktop, edge-to-edge on phones.
+   ============================================================ */
+
+.app-shell-bg {
+  background:
+    radial-gradient(60% 50% at 80% 0%, rgba(249, 115, 22, 0.12), transparent 65%),
+    radial-gradient(55% 45% at 10% 100%, rgba(168, 85, 247, 0.14), transparent 65%),
+    radial-gradient(45% 40% at 50% 50%, rgba(30, 64, 175, 0.06), transparent 70%),
+    linear-gradient(165deg, #FFF7ED 0%, #FFE8D6 60%, #FFD7B5 100%);
+}
+
+.app-shell-frame {
+  /* Single-column app frame at all viewports. Cards-only navigation. */
+  width: 100%;
+  /* Dynamic viewport height = visible area of the WebView, regardless of
+     the Android URL bar / status bar / nav bar showing or hiding. `100vh`
+     is the legacy fallback for browsers that don't yet support `dvh`. */
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0 auto;
+  background: linear-gradient(180deg, #FFFFFF 0%, #FFFBF5 100%);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+  overflow-x: hidden;
+}
+
+/* Desktop: full-width single-column frame (no sidebar — launchpad is THE nav). */
+@media (min-width: 768px) {
+  .app-shell-frame {
+    max-width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+}
+
+/* Sidebar removed — kept selector here so any stale render is hidden. */
+.app-sidebar { display: none !important; }
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* "Notch" simulated bar with status info */
+.app-status-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: saturate(180%) blur(18px);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  border-bottom: 1px solid rgba(15, 32, 66, 0.06);
+}
+
+.app-fab {
+  position: fixed;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  right: max(20px, env(safe-area-inset-right));
+  z-index: 40;
+  width: 60px;
+  height: 60px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0F2042 0%, #F97316 70%, #A855F7 130%);
+  color: white;
+  box-shadow:
+    0 22px 36px -10px rgba(249, 115, 22, 0.55),
+    0 10px 18px -6px rgba(15, 32, 66, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.app-fab:hover { transform: translateY(-3px) scale(1.04); }
+.app-fab:active { transform: translateY(0) scale(0.97); }
+
+@media (min-width: 768px) {
+  /* Hide FAB entirely on desktop — we have proper sidebar nav */
+  .app-fab { display: none !important; }
+}
+
+/* 3D Nav cards (gradient, rotating-on-hover, depth) */
+.nav-card-3d {
+  position: relative;
+  border-radius: 18px;
+  padding: 12px;
+  color: white;
+  overflow: hidden;
+  transform-style: preserve-3d;
+  perspective: 900px;
+  cursor: pointer;
+  box-shadow:
+    0 22px 32px -16px rgba(15, 32, 66, 0.35),
+    0 10px 18px -8px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: transform 0.4s cubic-bezier(.2,.8,.2,1), box-shadow 0.4s;
+  will-change: transform;
+}
+.nav-card-3d::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.18), rgba(255,255,255,0) 55%);
+  pointer-events: none;
+}
+.nav-card-3d::after {
+  /* Sheen line */
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -60%;
+  width: 60%;
+  height: 200%;
+  background: linear-gradient(120deg, transparent 40%, rgba(255,255,255,0.18) 50%, transparent 60%);
+  transform: rotate(20deg);
+  transition: left 0.7s;
+}
+.nav-card-3d:hover::after { left: 120%; }
+
+.nav-card-orbit {
+  position: absolute;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+}
+
+/* Pulsing dot used everywhere */
+.dot-pulse {
+  width: 8px; height: 8px; border-radius: 9999px;
+  position: relative;
+}
+.dot-pulse::before {
+  content: ""; position: absolute; inset: 0; border-radius: 9999px;
+  background: inherit; opacity: 0.55; animation: pulse-ring 1.6s ease-out infinite;
+}
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.55; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* Stat tiles for mobile dashboards */
+.tile-soft {
+  border-radius: 22px;
+  background: linear-gradient(160deg, #FFFFFF 0%, #FFF7ED 100%);
+  border: 1px solid rgba(15, 32, 66, 0.06);
+  padding: 16px;
+  box-shadow: 0 12px 22px -14px rgba(15, 32, 66, 0.18);
+}
+
+/* Safe-area scroll padding for mobile pages.
+
+   IMPORTANT: We no longer set `overflow-y: auto` on .app-page itself.
+   On Android WebView / TWA wrappers the inner scroll container becomes
+   unscrollable when the parent flex chain doesn't resolve a constrained
+   height (which happens after login because the document height grows
+   past `100vh`). Letting the document body scroll natively is the most
+   portable approach across desktop browsers, mobile Safari, Chrome
+   Android, in-app WebViews and Bubblewrap/TWA. */
+.app-page {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 16px max(96px, env(safe-area-inset-bottom));
+  /* Body handles scroll — no inner overflow trap on mobile. */
+  overflow: visible;
+  touch-action: auto;
+  overscroll-behavior-y: auto;
+}
+
+@media (min-width: 768px) {
+  .app-page {
+    padding: 28px 36px 48px;
+    max-width: 1400px;
+    width: 100%;
+    margin: 0 auto;
+    overflow: visible;
+    touch-action: auto;
+    overscroll-behavior-y: auto;
+  }
+}
+@media (min-width: 1280px) {
+  .app-page {
+    padding: 32px 48px 64px;
+  }
+}
+
+/* Visible thin scroll-bar inside the phone frame (mobile native feel) */
+.app-page::-webkit-scrollbar {
+  width: 5px;
+}
+.app-page::-webkit-scrollbar-track {
+  background: transparent;
+}
+.app-page::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #F97316, #A855F7);
+  border-radius: 9999px;
+  opacity: 0.7;
+}
+.app-page::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #EA580C, #7C3AED);
+}
+.app-page {
+  scrollbar-width: thin;
+  scrollbar-color: #F97316 transparent;
+}
+
+/* Floating sibling-page chevrons removed — cards-only navigation. */
+
+/* ============================================================
+   SMART POP-UP POSITIONING — pop-ups open near the user's last
+   click, clamped inside the visible viewport (JS sets left/top).
+   ============================================================ */
+.pj-smart-pop {
+  position: fixed !important;
+  margin: 0 !important;
+  overflow-y: auto !important;
+  border-radius: 20px !important;
+}
+
+
+/* Launchpad fills viewport — no vertical scroll. Bottom padding is tuned so
+   the 4-row card deck (8 cards) sits flush above the floating FAB / safe-area,
+   leaving no visible empty band below the pager dots. */
+.app-page-launchpad {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 14px max(20px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 768px) {
+  .app-page-launchpad {
+    overflow-y: visible;
+    padding: 32px 48px 64px;
+    max-width: 1400px;
+    width: 100%;
+    margin: 0 auto;
+    touch-action: auto;
+  }
+}
+
+/* Login content background — bright cinematic sunset */
+.login-cinema {
+  position: relative;
+  min-height: 100vh;
+  background:
+    radial-gradient(55% 45% at 90% 5%, rgba(252, 211, 77, 0.55), transparent 65%),
+    radial-gradient(50% 50% at 10% 90%, rgba(244, 114, 182, 0.55), transparent 70%),
+    radial-gradient(45% 35% at 50% 60%, rgba(99, 102, 241, 0.40), transparent 70%),
+    linear-gradient(160deg, #FFE0B2 0%, #FFB088 25%, #FB7185 50%, #C026D3 78%, #6366F1 100%);
+  color: white;
+  overflow: hidden;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+}
+
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+.float-y { animation: float-y 6s ease-in-out infinite; }
+
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+.spin-slow { animation: spin-slow 28s linear infinite; }
+
+/* ============================================================
+   MOBILE-APP MODALS — Iter 18
+   All `fixed inset-0 z-50` modal containers inside the portal
+   are converted to bottom-sheet modals on narrow widths so they
+   feel like a mobile app rather than a desktop pop-up.
+   ============================================================ */
+@media (max-width: 720px) {
+  .portal-scope .fixed.inset-0.z-50,
+  .portal-scope [class*="fixed inset-0 z-50"] {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .portal-scope .fixed.inset-0.z-50 > div:not([role="alert"]):not(.fab-keep):not(.pj-smart-pop),
+  .portal-scope [class*="fixed inset-0 z-50"] > div:not([role="alert"]):not(.fab-keep):not(.pj-smart-pop) {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 92vh !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-top-left-radius: 28px !important;
+    border-top-right-radius: 28px !important;
+    overflow-y: auto !important;
+    animation: sheet-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+  }
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); opacity: 0.5; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Bottom-up sheet style applies to true full-screen overlays (fixed inset-0 z-50)
+   — center-anchored sheets (like the Presence status sheet) opt out by using a
+   small width + transform centering — exclude them by NOT matching the overlay rule.
+   ONLY ON MOBILE — desktop keeps the centered modal. */
+@media (max-width: 767px) {
+  .app-shell-frame .fixed.inset-0.z-50 {
+    align-items: flex-end !important;
+  }
+  .app-shell-frame .fixed.inset-0.z-50 > div:not([role="alert"]):not(.pj-smart-pop) {
+    margin: 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-top-left-radius: 28px !important;
+    border-top-right-radius: 28px !important;
+    max-height: 92vh !important;
+    overflow-y: auto !important;
+  }
+}
+
+/* Drag handle at the top of mobile sheets */
+@media (max-width: 767px) {
+  .app-shell-frame .fixed.inset-0.z-50 > div:not([role="alert"]):not(.pj-smart-pop)::before {
+    content: "";
+    display: block;
+    width: 44px;
+    height: 4px;
+    border-radius: 9999px;
+    background: rgba(15, 32, 66, 0.12);
+    margin: 8px auto 4px;
+    flex-shrink: 0;
+  }
+}
+
+/* ============================================================
+   DESKTOP MODALS — Iter 23
+   On desktop the portal's `fixed inset-0 z-50` overlays render as
+   centered web modals that fit in the viewport with no outer scroll.
+   Inner content scrolls only when it overflows.
+   ============================================================ */
+@media (min-width: 768px) {
+  .portal-scope .fixed.inset-0.z-50:not([class*="justify-end"]):not([class*="items-stretch"]),
+  .app-shell-frame .fixed.inset-0.z-50:not([class*="justify-end"]):not([class*="items-stretch"]) {
+    /* Center the modal box vertically + horizontally in the viewport. */
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 24px !important;
+    overflow: hidden !important;
+  }
+  .portal-scope .fixed.inset-0.z-50:not([class*="justify-end"]):not([class*="items-stretch"]) > div:not([role="alert"]):not(.pj-smart-pop),
+  .app-shell-frame .fixed.inset-0.z-50:not([class*="justify-end"]):not([class*="items-stretch"]) > div:not([role="alert"]):not(.pj-smart-pop) {
+    /* Cap height so the whole modal is visible without page scrolling. */
+    max-height: min(88vh, 860px) !important;
+    margin: 0 auto !important;
+    border-radius: 22px !important;
+    /* Internal scroll handles long forms, but the box itself never overflows the viewport. */
+    overflow-y: auto !important;
+    /* Don't force tiny widths — let each modal keep its own max-w-* class. */
+  }
+  /* Drawers (side sheets) and side-anchored panels keep their own layout — opt them out. */
+  .portal-scope .fixed.inset-0.z-50 > aside,
+  .app-shell-frame .fixed.inset-0.z-50 > aside {
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+    overflow-y: auto !important;
+  }
+}
+
+/* Mobile-page hero — compact variant for narrow phone-frame.
+   ONLY ON MOBILE — desktop keeps full hero + artwork. */
+@media (max-width: 767px) {
+  .app-shell-frame .portal-hero,
+  .portal-scope .portal-hero {
+    padding: 1rem !important;
+  }
+  .portal-scope .portal-hero h1 {
+    font-size: 1.5rem !important;
+    line-height: 1.15 !important;
+  }
+  .portal-scope .portal-hero-art {
+    display: none !important;
+  }
+}
+
+/* Force single-column for any 2/3/4/5-col layouts inside the phone-frame.
+   ONLY ON MOBILE — desktop preserves multi-column layouts. */
+@media (max-width: 767px) {
+  .app-shell-frame .lg\:grid-cols-5,
+  .app-shell-frame .lg\:grid-cols-4,
+  .app-shell-frame .lg\:grid-cols-3,
+  .app-shell-frame .lg\:grid-cols-2,
+  .app-shell-frame .md\:grid-cols-5,
+  .app-shell-frame .md\:grid-cols-4,
+  .app-shell-frame .md\:grid-cols-3,
+  .app-shell-frame .md\:grid-cols-2,
+  .app-shell-frame .xl\:grid-cols-3,
+  .app-shell-frame [class*="lg:grid-cols-["],
+  .app-shell-frame [class*="md:grid-cols-["] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Hide infographic art ONLY on mobile (too wide for narrow phone-frame). */
+@media (max-width: 767px) {
+  .app-shell-frame .portal-infographic,
+  .app-shell-frame .lg\:col-span-3:has(.portal-infographic),
+  .portal-scope .portal-infographic {
+    display: none !important;
+  }
+  .portal-scope .lg\:grid-cols-5,
+  .portal-scope .lg\:grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Make full-width inputs feel native */
+.app-shell-frame input[type="text"],
+.app-shell-frame input[type="email"],
+.app-shell-frame input[type="password"],
+.app-shell-frame input[type="search"],
+.app-shell-frame textarea,
+.app-shell-frame select {
+  font-size: 16px; /* prevent iOS zoom on focus */
+}
+
+
+
+/* ============================================================
+   NATIVE MOBILE-APP LOOK — Iter 19
+   Aggressive transformation: every inner portal page renders
+   like an iOS / Android native app on PHONES ONLY. Grids of cards
+   collapse into grouped list rows. Heroes shrink. Action buttons
+   are pinned. This applies ONLY inside .app-page (not Launchpad /
+   not modals) AND only at < 768px (desktop keeps full web layout).
+   ============================================================ */
+
+@media (max-width: 767px) {
+
+/* (1) HERO — Compress big "marketing" hero blocks
+   Hero is the first card-styled div inside .app-page (potentially nested one wrapper deep). */
+.app-page [data-testid] > div:first-child[class*="rounded-3xl"][class*="border"],
+.app-page > div:first-child[class*="rounded-3xl"][class*="border"] {
+  padding: 16px 18px !important;
+  border-radius: 24px !important;
+  margin-bottom: 12px;
+}
+.app-page [data-testid] > div:first-child[class*="rounded-3xl"][class*="border"] h1,
+.app-page > div:first-child[class*="rounded-3xl"][class*="border"] h1 {
+  font-size: 22px !important;
+  line-height: 1.15 !important;
+  letter-spacing: -0.01em;
+}
+.app-page [data-testid] > div:first-child[class*="rounded-3xl"][class*="border"] p,
+.app-page > div:first-child[class*="rounded-3xl"][class*="border"] p {
+  display: none !important;
+}
+
+/* (2) STAT GRIDS — Collapse to iOS-style grouped list */
+.app-page .grid.gap-3.grid-cols-2,
+.app-page .grid.gap-4.grid-cols-2,
+.app-page .grid.gap-3.sm\:grid-cols-2,
+.app-page .grid.gap-4.sm\:grid-cols-2,
+.app-page .grid.gap-3.sm\:grid-cols-3,
+.app-page .grid.gap-4.sm\:grid-cols-3,
+.app-page .grid.gap-3.lg\:grid-cols-4,
+.app-page .grid.gap-4.lg\:grid-cols-4 {
+  display: block !important;
+  background: white;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(15, 32, 66, 0.08);
+  box-shadow: 0 8px 18px -10px rgba(15, 32, 66, 0.12);
+  margin-bottom: 14px;
+}
+.app-page .grid.gap-3.grid-cols-2 > *,
+.app-page .grid.gap-4.grid-cols-2 > *,
+.app-page .grid.gap-3.sm\:grid-cols-2 > *,
+.app-page .grid.gap-4.sm\:grid-cols-2 > *,
+.app-page .grid.gap-3.sm\:grid-cols-3 > *,
+.app-page .grid.gap-4.sm\:grid-cols-3 > *,
+.app-page .grid.gap-3.lg\:grid-cols-4 > *,
+.app-page .grid.gap-4.lg\:grid-cols-4 > * {
+  border-radius: 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(15, 32, 66, 0.06) !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 14px 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+.app-page .grid.gap-3.grid-cols-2 > *:last-child,
+.app-page .grid.gap-4.grid-cols-2 > *:last-child,
+.app-page .grid.gap-3.sm\:grid-cols-2 > *:last-child,
+.app-page .grid.gap-4.sm\:grid-cols-2 > *:last-child,
+.app-page .grid.gap-3.sm\:grid-cols-3 > *:last-child,
+.app-page .grid.gap-4.sm\:grid-cols-3 > *:last-child,
+.app-page .grid.gap-3.lg\:grid-cols-4 > *:last-child,
+.app-page .grid.gap-4.lg\:grid-cols-4 > *:last-child {
+  border-bottom: 0 !important;
+}
+
+/* Big "value" number floats to the right in stat rows */
+.app-page .grid > div .text-3xl,
+.app-page .grid > div .text-2xl,
+.app-page .grid > div .font-display.text-3xl,
+.app-page .grid > div .font-display.text-2xl {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  margin-left: auto !important;
+  margin-top: 0 !important;
+  color: #0F2042 !important;
+}
+
+/* Hide "LIVE" pill at top-right of stat cards inside collapsed grid (already in label below) */
+.app-page .grid > div .text-\[10px\].font-bold.uppercase,
+.app-page .grid > div .text-\[9px\].font-bold.uppercase {
+  font-size: 9px !important;
+}
+
+/* iOS-style chevron hint at end of stat list rows (only when grid is collapsed to list) */
+.app-page .grid.gap-3.grid-cols-2 > div::after,
+.app-page .grid.gap-4.grid-cols-2 > div::after,
+.app-page .grid.gap-3.sm\:grid-cols-2 > div::after,
+.app-page .grid.gap-4.sm\:grid-cols-2 > div::after,
+.app-page .grid.gap-3.sm\:grid-cols-3 > div::after,
+.app-page .grid.gap-4.sm\:grid-cols-3 > div::after,
+.app-page .grid.gap-3.lg\:grid-cols-4 > div::after,
+.app-page .grid.gap-4.lg\:grid-cols-4 > div::after {
+  content: "›";
+  margin-left: 8px;
+  color: rgba(15, 32, 66, 0.25);
+  font-size: 22px;
+  font-weight: 300;
+  flex-shrink: 0;
+}
+
+/* (3) Section card containers — softer rounded */
+.app-page .rounded-2xl.border.border-slate-200,
+.app-page .rounded-3xl.border.border-slate-200 {
+  border-radius: 18px !important;
+  border-color: rgba(15, 32, 66, 0.08) !important;
+}
+
+/* (4) Section headings — iOS small caps */
+.app-page h2.font-display,
+.app-page h3.font-display {
+  font-size: 16px !important;
+}
+
+/* (5) Compact spacing on inner pages */
+.app-page .space-y-8 > * + * { margin-top: 14px !important; }
+.app-page .space-y-6 > * + * { margin-top: 12px !important; }
+.app-page .space-y-5 > * + * { margin-top: 12px !important; }
+.app-page .space-y-4 > * + * { margin-top: 10px !important; }
+
+/* (6) Smooth scroll + safe area — smooth scroll ONLY on mobile (causes stuck wheel on desktop trackpads) */
+.app-page { -webkit-overflow-scrolling: touch; }
+@media (max-width: 767px) {
+  .app-page { scroll-behavior: smooth; }
+}
+
+/* (7) Form fields — bigger tap, rounded, iOS style */
+.app-shell-frame input[type="text"],
+.app-shell-frame input[type="email"],
+.app-shell-frame input[type="password"],
+.app-shell-frame input[type="search"],
+.app-shell-frame input[type="number"],
+.app-shell-frame textarea,
+.app-shell-frame select {
+  border-radius: 12px !important;
+  padding: 12px 14px !important;
+  background: rgba(15, 32, 66, 0.04);
+  border: 1px solid transparent !important;
+  transition: background 0.2s, border-color 0.2s;
+}
+.app-shell-frame input:focus,
+.app-shell-frame textarea:focus,
+.app-shell-frame select:focus {
+  background: white !important;
+  border-color: #F97316 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15) !important;
+}
+
+/* (8) Modal — iOS sheet style with bigger drag handle */
+.app-shell-frame .fixed.inset-0.z-50 > div:not([role="alert"]) {
+  background: white !important;
+  box-shadow: 0 -20px 50px -10px rgba(15, 32, 66, 0.25) !important;
+}
+
+/* (9) Live charts inside phone-frame — compact */
+.app-shell-frame .recharts-wrapper {
+  max-height: 220px !important;
+}
+
+/* (10) Subtle tap feedback on list rows */
+.app-page .grid > div {
+  transition: background 0.15s ease;
+}
+.app-page .grid > div:hover {
+  background: rgba(249, 115, 22, 0.04) !important;
+}
+.app-page .grid > div:active {
+  background: rgba(249, 115, 22, 0.08) !important;
+}
+
+/* (11) Hero compact stat blocks — value display tighter */
+.app-page > div:first-child[class*="rounded-3xl"][class*="border"] .text-xs,
+.app-page > div:first-child[class*="rounded-3xl"][class*="border"] .text-\[10px\] {
+  margin-bottom: 4px;
+}
+
+/* (12) "Pull to refresh" friction zone — mobile only */
+@media (max-width: 767px) {
+  .app-page {
+    overscroll-behavior: contain;
+  }
+}
+
+/* (13) The Kanban scroll containers we KEEP as horizontal scroll */
+.app-page .overflow-x-auto {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 8px;
+}
+.app-page .overflow-x-auto > * {
+  scroll-snap-align: start;
+}
+
+/* (14) Filter chip rows — wrap nicely on mobile */
+.app-page .flex.flex-wrap.gap-2 {
+  gap: 6px;
+}
+.app-page .flex.flex-wrap.gap-2 > button {
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+/* (15) Avatars — tighter on mobile */
+.app-page .h-12.w-12 { width: 40px !important; height: 40px !important; }
+.app-page .h-14.w-14 { width: 48px !important; height: 48px !important; }
+
+/* (16) Truncate long emails/names in list rows */
+.app-page .truncate {
+  max-width: 100%;
+}
+
+/* (17) Sticky top "iOS large title" feel for the app-status-bar */
+.app-status-bar {
+  padding-top: max(12px, env(safe-area-inset-top)) !important;
+}
+
+} /* END @media (max-width: 767px) — NATIVE MOBILE-APP LOOK Iter 19 */
+
+/* ============================================================
+   DESKTOP SIDEBAR NAV — Iter 20
+   Styling for the persistent left sidebar on desktop.
+   ============================================================ */
+.sidebar-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+.sidebar-nav-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #FFFFFF;
+}
+.sidebar-nav-link.is-active {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.22), rgba(168, 85, 247, 0.18));
+  color: #FFFFFF;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.sidebar-nav-link svg {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+.sidebar-nav-link.is-active svg {
+  color: #FDBA74;
+  opacity: 1;
+}
+
+/* Desktop top header — slim row above page content */
+.app-desktop-header {
+  display: none;
+}
+@media (min-width: 768px) {
+  .app-desktop-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 36px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: saturate(180%) blur(18px);
+    -webkit-backdrop-filter: saturate(180%) blur(18px);
+    border-bottom: 1px solid rgba(15, 32, 66, 0.06);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+}
+
+/* Hide the iOS status-bar on desktop (sidebar+desktop-header replace it) */
+@media (min-width: 768px) {
+  .app-status-bar {
+    display: flex !important;
+  }
+}
+
+/* === Banner-style toast notifications (Sonner) === */
+[data-sonner-toaster][data-position^="top"] {
+  top: 16px !important;
+}
+.pjx-banner-toast {
+  border: 1px solid rgba(15, 32, 66, 0.08) !important;
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  animation: pjx-banner-slide-in 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes pjx-banner-slide-in {
+  0%   { transform: translateY(-120%); opacity: 0; }
+  60%  { transform: translateY(6px);   opacity: 1; }
+  100% { transform: translateY(0);     opacity: 1; }
+}
+
+/* === Modals anchored to document scroll === */
+/* When a modal overlay (position: fixed) is rendered, JS pins it to the user's
+   current scroll position via .pjx-anchor-doc — it then scrolls with the page. */
+.pjx-anchor-doc {
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  /* `top` is set dynamically (= window.scrollY when the modal opens) */
+  height: 100vh;
+}
+
+
+/* Shared form input utility used in Digi + other admin panels */
+.inp {
+  display: block;
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.inp:focus {
+  border-color: #F97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+}
+.inp:disabled { background: #f1f5f9; cursor: not-allowed; }
+
+/* ──────────────────────────────────────────────────────────────────────
+   GLOBAL MOBILE GUARDS — Iter 48
+   Prevents 90% of "looks bad on mobile" complaints:
+     • Stops any wide grid/flex from causing horizontal page scroll.
+     • Caps modal width to viewport with safe padding.
+     • Tables become horizontally scrollable instead of stretching the page.
+     • Long URLs / monospace strings break instead of overflowing.
+   ──────────────────────────────────────────────────────────────────── */
+html, body, #root {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Tables — scroll horizontally inside their own container on small screens */
+@media (max-width: 767px) {
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+  /* Common SaaS pattern: dense grids that look great on desktop but cramped on phones */
+  .responsive-grid-2 { grid-template-columns: 1fr !important; }
+  .responsive-grid-3 { grid-template-columns: 1fr !important; }
+  .responsive-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  /* Modals should never exceed viewport on phones */
+  .fixed[class*="max-w-"] {
+    max-width: calc(100vw - 24px) !important;
+  }
+}
+
+/* Long URLs / monospace data in cards — wrap aggressively */
+.font-mono, code, kbd, pre {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Hero gradient cards — tighten padding on phones so they don't dwarf content */
+@media (max-width: 639px) {
+  .app-page h1, .app-page h2 { line-height: 1.15; }
+  .app-page .max-w-5xl, .app-page .max-w-6xl { max-width: 100% !important; }
+}
+
+/* Public landing — slim vertical padding on phones (hero feels less suffocating) */
+@media (max-width: 639px) {
+  section { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+}
+
+/* ============================================================
+   RESPONSIVE HARDENING — Iter 73
+   Breakpoints contract: Mobile 0-599 · Tablet 600-1023 · Desktop 1024+
+   ============================================================ */
+/* Media elements never overflow their container on any device */
+.portal-scope img,
+.portal-scope svg,
+.portal-scope video,
+.portal-scope canvas,
+.portal-scope iframe {
+  max-width: 100%;
+}
+
+/* The portal main column never produces page-level horizontal scroll —
+   wide tables/kanbans scroll inside their own overflow-x-auto wrappers. */
+.portal-scope main {
+  overflow-x: hidden;
+}
+
+/* Bottom-sheet treatment for HIGHER z-index overlays too (blast/analytics/
+   playbook builder/preview modals use z-[60..75]) on mobile */
+@media (max-width: 599px) {
+  .portal-scope [class*="z-[6"][class*="fixed"][class*="inset-0"],
+  .portal-scope [class*="z-[7"][class*="fixed"][class*="inset-0"] {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .portal-scope [class*="z-[6"][class*="fixed"][class*="inset-0"] > div:not([role="alert"]),
+  .portal-scope [class*="z-[7"][class*="fixed"][class*="inset-0"] > div:not([role="alert"]) {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 94vh !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-top-left-radius: 24px !important;
+    border-top-right-radius: 24px !important;
+    overflow-y: auto !important;
+  }
+}
+
+/* Any raw table dropped outside a scroll wrapper stays usable on small screens */
+@media (max-width: 1023px) {
+  .portal-scope table {
+    font-size: 0.8rem;
+  }
+}
+
+/* Touch targets: keep buttons comfortably tappable on mobile */
+@media (max-width: 599px) {
+  .portal-scope button {
+    min-height: 30px;
+  }
+}
+
+/* ============================================================
+   PILL TAB BARS — clean single-row horizontal scroll on mobile/tablet.
+   Targets the shared tab-strip signature used across all hub pages:
+   inline-flex + rounded-full + p-1 + ring-slate-200.
+   ============================================================ */
+@media (max-width: 1023px) {
+  .portal-scope div[class*="flex"][class*="rounded-full"][class*="p-1"][class*="ring-slate-200"] {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    max-width: 100%;
+    border-radius: 16px !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+  }
+  .portal-scope div[class*="flex"][class*="rounded-full"][class*="p-1"][class*="ring-slate-200"]::-webkit-scrollbar {
+    display: none;
+  }
+  .portal-scope div[class*="flex"][class*="rounded-full"][class*="p-1"][class*="ring-slate-200"] > * {
+    flex-shrink: 0;
+    white-space: nowrap;
+    scroll-snap-align: start;
+  }
+  /* Right-edge fade hint so users know the strip scrolls */
+  .portal-scope div[class*="flex"][class*="rounded-full"][class*="p-1"][class*="ring-slate-200"] {
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 22px), rgba(0,0,0,0.25));
+    mask-image: linear-gradient(to right, black calc(100% - 22px), rgba(0,0,0,0.25));
+  }
+}

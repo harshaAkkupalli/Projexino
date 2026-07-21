@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 28 — Phase 1 (RBAC roles + reporting manager + CC notifications) and Phase 2 (Team & Intern Hub) backend tests: 25/25 PASS. Critical bug-fix (intern can see assigned tasks) VERIFIED via GET /api/tasks as intern after admin POST with assignee_id and assignee_email. Frontend launchpad visually confirmed to show a SINGLE 'Intern Hub' card (no duplicate). Other frontend smoke flows (Access Control add-modal role dropdown options, matrix tab, Interns page Added-by/at) need a quick visual self-test by main agent — automation was blocked by 2-step login flow (role-card → CONTINUE → credentials → Enter Admin) timing out on the post-login wait_for_url, even though the page actually reached /app/.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter28_phase12.py",
+    "/app/test_reports/pytest/iter28.xml"
+  ],
+  "action_items": [
+    "Main agent: quick visual self-test of /app/access-control — open 'Add team member' modal, confirm role dropdown has exactly 7 options (no Super Admin, no Team Member) and shows Reporting Manager dropdown + 'CC reporting manager' checkbox.",
+    "Main agent: visual self-test of /app/access-control list view — confirm Reports to / Added by / Added at lines and CC badge render on team cards (rose/red flag for missing).",
+    "Main agent: visual self-test of /app/access-control matrix tab — should show 8 role tabs (super_admin + the 7 ASSIGNABLE_ROLES) and NOT team_member.",
+    "Main agent: visual self-test of /app/interns — each intern card should show 'Added by:' + 'Added at:' at the bottom (legacy may show '— unknown (legacy record)')."
+  ],
+  "critical_code_review_comments": [
+    "server.py:list_tasks — multi-source filter (owner_id OR assignee_id OR reporting_manager_id OR assignee_email OR legacy free-text name) correctly closes the bug. Consider adding an index on tasks.assignee_id and tasks.reporting_manager_id for scale.",
+    "rbac.py:create_admin — when role='super_admin' is requested by a non-primary super_admin the path is allowed since _require_super only checks role=='super_admin'. Consider requiring is_primary_super_admin to create another super_admin.",
+    "rbac.py:list_admins — backfills setdefault on the wire but doesn't persist; consider a one-time migration so created_by_name='System (seeded)' shows up in dashboards consistently.",
+    "extensions.py:Intern model has no 'role' field but the UI calls the job title 'role' in places — minor naming inconsistency between user.role (RBAC) and intern.designation (job title).",
+    "notif_engine.notify CC path — manager [FYI] copy looked up via reporting_manager_id only on the recipient record; if reporting_manager_id is missing but reporting_manager_email is set, no CC fires. Edge case, but worth a fallback.",
+    "Tasks API has no pagination — to_list(2000) cap. Add skip/limit query params before the task list grows."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter28_phase12.py (NEW — 25 tests covering RBAC roles, admin CRUD with reporting manager, task bug-fix multi-role visibility, task perms, interns CRUD with HR/admin override, CC-to-manager [FYI] notification)"
+  ],
+  "success_rate": {"backend": "100% (25/25)", "frontend": "Launchpad confirmed (single Intern Hub card). Other smoke flows pending self-test (automation blocked by 2-step login wait)."},
+  "test_credentials": "admin@projexino.com / Projexino@2026, manager@projexino.com / Manager@2026, hr@projexino.com / HR@2026, intern@projexino.com / Intern@2026 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "All test data uses TEST_<uuid> prefix and is cleaned up in-test via DELETE calls (admin endpoint for users/tasks/interns).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 1+2 fully done & backend-verified. Tests live in /app/backend/tests/test_iter28_phase12.py. Note: /api/rbac/roles is intentionally accessible to all authenticated users; /api/rbac/admins requires super_admin (returns 403 for non-super). Tasks now use multi-source visibility filter — owner_id OR assignee_id OR reporting_manager_id OR assignee_email OR legacy free-text 'assignee' name match. Reporting manager auto-resolution: POST /api/tasks resolves manager_user from payload's reporting_manager_id or falls back to the assignee's user.reporting_manager_id. CC-to-manager: notif_engine.notify reads recipient.route_comms_to_manager and posts a duplicate [FYI] notification to the manager. Frontend: 2-step login flow is role-card → CONTINUE → credentials form → 'Enter Admin' button (text varies by role: 'Enter Intern' etc).",
+  "rca of the issue": "Bug RCA — Original list_tasks filtered by {owner_id: uid} ONLY. When an admin (uid=A) created a task with assignee=intern, owner_id=A so the intern (uid=I) never saw it. Fix: server.py:list_tasks now builds an $or clause on owner_id, assignee_id, reporting_manager_id, assignee_email (lower-cased) and legacy free-text assignee (case-insensitive regex). create_task additionally resolves assignee_user via id→email→name fallback and auto-populates assignee_id + reporting_manager_id from the assignee's user profile. Verified by test_intern_sees_assigned_task + test_create_task_by_email_resolves + test_manager_sees_tasks_when_set_as_reporting_manager — all PASS."
+}

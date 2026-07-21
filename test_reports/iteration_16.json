@@ -1,0 +1,57 @@
+{
+  "summary": "Iteration 16 — Frontend-only validation of PROJEXINO AppShell + Launchpad refactor (paginated 3D card deck + Intern Portal under same shell). Tested marketing Navbar, login header, intern launchpad cards & gating, admin pagination (16 cards/3 pages), drawer (no Marketing link), FAB Home, back arrow, no-vertical-scroll on Launchpad, search sheet, presence widget, intern chat single-pane, hot paths. 34/34 functional checks PASSED on the main run. Drawer test re-verified separately after toast cleared (4/4 PASS). No backend regressions observed during UI flows.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "AppShell post-login (admin/intern)", "issues": ["Sonner 'Welcome back' success toast briefly overlaps the top-right action cluster (presence/search/notif/menu) and can intercept clicks for ~3s after login. Cosmetic, but caused 1 transient click miss in automation. Consider auto-dismiss <1500ms or reposition toast to top-center below status bar."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_16.json"
+  ],
+  "action_items": [
+    "(Optional polish) Shorten 'Welcome back' toast duration or reposition so it doesn't overlap app-menu-btn / presence-toggle right after login.",
+    "(Console) Three.js Clock deprecation warning on /login — switch to THREE.Timer when convenient (non-blocking)."
+  ],
+  "critical_code_review_comments": [
+    "Launchpad.jsx correctly gates cards by role via CARDS_PORTAL[].roles + filter on user.role — intern variant uses CARDS_INTERN catalog (no role gating needed). 7 intern cards × PAGE_SIZE=6 = 2 pages with profile on p2 ✅.",
+    "AppShell.jsx isHome detection uses base = /intern | /m | /app and matches pathname OR trailing slash OR tail==base slug — covers all three portal trees consistently. app-page-launchpad class only applied when isHome (overflow:hidden) — correctly removed on inner pages where natural scroll is desired.",
+    "Login.jsx — pj_role is read from localStorage to decide /intern vs /app post-login; this relies on AuthContext writing pj_role before navigate fires (80ms setTimeout). Functional but fragile — preferable to read role from the login() return value directly.",
+    "Navbar.jsx — 'Sign in' removed from both desktop CTA block and mobile menu as required. Only 'Start Your Project' external CTA + role-aware 'Open Portal' for authed users.",
+    "Drawer no longer surfaces 'Marketing site' link — confirmed via DOM scan (drawer-marketing testid absent AND text scan negative)."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (not tested)", "frontend": "100% (38/38 verified checks across two runs)" },
+  "test_credentials": "admin@projexino.com/Projexino@2026, intern@projexino.com/Intern@2026 — both verified working.",
+  "seed_data_creation": "None — used seeded accounts only.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Mobile viewport 390x844 used for all launchpad checks. Intern login lands on /intern (not /intern/dashboard) per new spec. Admin Launchpad has exactly 3 pages (dots 0/1/2, no dot-3). launch-card-settings appears on page 3 only. main.app-page-launchpad has scrollHeight==clientHeight (no overflow). When opening drawer right after login, wait ~5s for Sonner toast to auto-dismiss so it doesn't intercept app-menu-btn click.",
+  "verified_checks": {
+    "marketing_navbar_desktop_no_signin": true,
+    "marketing_navbar_mobile_no_signin": true,
+    "login_no_marketing_link": true,
+    "intern_lands_on_/intern": true,
+    "intern_launchpad_p1_cards_all_6_present": true,
+    "intern_launchpad_p2_profile_present": true,
+    "intern_gating_no_finance_settings_presence_email-campaigns_manager_interns": true,
+    "intern_no_vertical_scroll": true,
+    "intern_inner_page_has_fab_home_and_back_arrow": true,
+    "fab_returns_to_/intern": true,
+    "intern_chat_renders": true,
+    "admin_pagination_dots_0_1_2": true,
+    "admin_no_dot_3": true,
+    "admin_settings_on_page_3": true,
+    "admin_no_vertical_scroll": true,
+    "admin_tasks_has_new_task_button": true,
+    "admin_fab_returns_to_/app": true,
+    "app_back_btn_returns_to_/app": true,
+    "drawer_has_home_and_logout": true,
+    "drawer_no_marketing_link": true,
+    "search_sheet_works_with_query_project": true,
+    "presence_toggle_visible": true,
+    "app_chat_loaded": true
+  }
+}

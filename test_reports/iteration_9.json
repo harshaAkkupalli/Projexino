@@ -1,0 +1,50 @@
+{
+  "summary": "Performance Certificate + Celebration banner + Chat redesign + Mobile portal backdrop batch tested. Backend: 9/9 NEW (test_batch_certificate.py) + 18/18 regression (test_batch1.py + test_batch23.py) = 27/27 green. Cert endpoint returns PDF (Content-Type application/pdf, Content-Disposition includes 'Performance_Certificate.pdf', body starts with %PDF, ~size > 10KB). Awarded badge slug 'innovator' to intern@projexino.com — reflected back via /api/me/intern/progress. Frontend: celebration banner [data-testid=badge-celebration] appears after clearing pj_latest_badge_seen — shows latest badge 'Communicator' + Badge3D <svg>; Dismiss button hides banner and writes badge id to localStorage. Intern dashboard has both [data-testid=download-report-btn] and [data-testid=download-cert-btn]; 6 [data-testid^=dashboard-badge-] tiles with SVG. Desktop chat (1280px) two-pane aside + conversation with chat-input/send/attach + back-btn hidden + autoscroll on send verified. Mobile chat (390px): chat-back-btn visible on conversation pane, attach/send/input all present. Portal mobile (admin): portal-menu-toggle opens sidebar (left 0, width 256) + dark fixed backdrop element rendered; clicking right of sidebar closes (left -256). Intern mobile menu toggle present and opens sidebar similarly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Intern dashboard — Performance certificate button",
+        "issue": "Clicking [data-testid=download-cert-btn] as the intern themself triggers GET /api/interns/{intern_id}/certificate which is owner-scoped (db.interns.find_one({'id': intern_id, 'owner_id': user['id']})). Intern user is NOT the owner_id (admin is), so the endpoint returns 404 → toast 'Could not generate certificate' fires. Browser console shows 'Failed to load resource: status 404'. As admin/owner the same endpoint correctly returns the PDF (verified via pytest).",
+        "affected_selectors": ["[data-testid=download-cert-btn]"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "/intern/dashboard, /app/dashboard",
+        "issues": ["Console error 'Error: <circle> attribute r: Expected length, \"undefined\".' still emitted 7+ times on dashboard load — carry-over from iteration 8. Likely a Recharts dot/Pie radius prop receiving undefined when its dataset is empty."]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_batch_certificate.py",
+    "/app/test_reports/pytest/iter9_results.xml"
+  ],
+  "action_items": [
+    "Intern download-cert-btn flow is broken end-to-end: either (a) gate the button so it is only shown to admin/manager/HR (the cert is typically issued *to* the intern by management), or (b) add a sibling endpoint such as GET /api/me/intern/certificate that resolves the current intern's profile to its owner and returns the same PDF, then call that endpoint from InternDashboard.jsx.",
+    "Investigate Recharts 'circle attribute r: undefined' console warnings on /app/dashboard and /intern/dashboard (open from iter 8)."
+  ],
+  "critical_code_review_comments": [
+    "extensions.py L704-731 — /api/interns/{intern_id}/certificate filters by owner_id, so only the admin/manager who created the intern row can fetch the cert. InternDashboard.jsx L40-57 unconditionally calls this same endpoint with the intern's own auth, which always returns 404 for the intern user. Either gate the UI button by role OR add a /api/me/intern/certificate self-service variant.",
+    "extensions.py _build_intern_certificate_pdf — confirmed working: header 'PERFORMANCE CERTIFICATE', logo bytes cached, achievement summary paragraph, badge grid, signature block. PDF body > 10KB and starts with %PDF.",
+    "InternDashboard.jsx L40-57 downloadCertificate has good error-toast on failure but the visual button still entices the intern to click something they can never download. Hide-or-redirect is the correct fix.",
+    "PortalLayout.jsx + InternLayout.jsx — mobile backdrop overlay verified: clicking outside the sidebar correctly retracts it (left transitions back to -256). z-index stacking works."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_batch_certificate.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 batch certificate + 18/18 regression = 27/27)",
+    "frontend": "~88% — celebration banner, badge gallery, desktop+mobile chat, portal mobile backdrop, intern mobile toggle all PASS. download-cert-btn UI present but its API call 404s for intern role."
+  },
+  "test_credentials": "admin@projexino.com/Projexino@2026, manager@projexino.com/Manager@2026, intern@projexino.com/Intern@2026 — all confirmed.",
+  "seed_data_creation": "Awarded 'Innovator' badge (slug=innovator) + 'Communicator' badge to intern@projexino.com with reason starting 'TEST_iter9'. Sent test chat message 'TEST_iter9_msg autoscroll' in DM·TEST_UpdatedName channel. Created+deleted TEST_iter9_squad group channel during PATCH test.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend cert endpoint is owner-scoped — only the admin/manager who created the intern row can fetch the cert PDF. The current InternDashboard.jsx exposes a 'Performance certificate' button to the intern themself, but the call 404s. Next test should verify whatever fix the main agent applies (either role-gated button hide OR a new /api/me/intern/certificate endpoint). Backend regression suite is /app/backend/tests/test_batch1.py + test_batch23.py + test_batch_certificate.py (27 tests). Mobile chat persists last-selected channel across sessions (so 'initial state shows only list' is only true on a fresh-no-channel-ever-selected user). Recharts 'circle r undefined' console warnings are still present (open since iter 8).",
+  "rca of the issue": "Intern 'Performance certificate' download 404: backend route /api/interns/{intern_id}/certificate filters interns by owner_id == current_user.id; the intern user is NOT the owner_id (admin who created the intern record is). When the intern hits the route the WHERE clause fails and the endpoint returns 404 with 'Intern not found'. Reproduction: login as intern@projexino.com → /intern/dashboard → click 'Performance certificate' → see toast 'Could not generate certificate' + 404 in network. Mitigation: either (a) hide [data-testid=download-cert-btn] for role='intern' (it's a manager/admin action), or (b) add GET /api/me/intern/certificate that resolves the intern row by user_id linkage and reuses _build_intern_certificate_pdf, then update InternDashboard.jsx to call that endpoint instead."
+}

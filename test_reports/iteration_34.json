@@ -1,0 +1,33 @@
+{
+  "summary": "Iter 34 — Newsletter 'Compose from Blog' AI draft workflow. Backend 7/7 pytest pass; Frontend end-to-end verified: open picker → set audience hint → click post Draft → AI meta chip + branded HTML populates → Preview iframe opens + closes. Other tabs intact.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter34_newsletter_blog_ai.py",
+    "/app/test_reports/pytest/iter34_newsletter_blog_ai.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "newsletter.py admin_draft_from_blog: AI prompt requests strict JSON but only does a single attempt; if the model wraps in markdown but JSON is parseable the regex \\{[\\s\\S]*\\} grabs the largest brace span which may pull trailing junk. Consider json.loads-then-fallback-strip strategy or one retry on JSONDecodeError.",
+    "newsletter.py _render_blog_email_shell: comment claims 640px container but inline style uses width='600'/max-width:600px. Doc/code mismatch — harmless but worth aligning the docstring.",
+    "newsletter.py admin_send_blog_as_newsletter (body_html override path): when caller supplies body_html, server passes it straight to _send_to_audience which then wraps with _wrap_for_unsubscribe footer — good. But there's no length / size guard; a malicious super-large body_html could blow Gmail's per-message limits silently per recipient. Suggest a 250 KB cap with HTTP 413.",
+    "Frontend BlogDraftDialog uses data-testid='nl-draft-tone' and 'nl-draft-audience' for inputs and 'nl-draft-{post_id}' for action buttons — the shared prefix 'nl-draft-' makes querySelectorAll-by-prefix ambiguous (testing agents must filter by hex regex). Consider renaming inputs to 'nl-draft-tone-input' / 'nl-draft-audience-input' for cleaner test selectors."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter34_newsletter_blog_ai.py (NEW)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@projexino.com / Projexino@2026; intern@projexino.com / Intern@2026 — both verified",
+  "seed_data_creation": "No new seed data — reused existing published post 'TEST_ITER27 Draft Post' (post_id=3f73ea6b4aa34b4991a831134385444c) and 'TEST_iter26 SEO Hub c3caa1'. The fixture in test file falls back to creating a TEST_iter34_* post via POST /api/admin/blog/posts if no published post exists.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Login flow now: (1) dismiss intro carousel via 'text=SKIP' (overlay appears first paint), (2) click [data-testid=role-card-admin-cta] → continues to email/password, (3) submit. Newsletter picker uses nl-draft-{post_id_hex} for post buttons but also nl-draft-tone / nl-draft-audience for inputs — filter with hex regex when iterating data-testid^='nl-draft-'. AI draft latency observed: ~5s with EMERGENT_LLM_KEY → Claude. body_html shape verified: contains '<!doctype html>', '#F97316', width='600' table. Preview modal: data-testid=nl-preview-modal with iframe child; close via nl-preview-close.",
+  "rca_of_the_issue": "n/a — no issues found. All 9 review-request items (backend success/shape, payload override, 404, RBAC, send-blog override, frontend picker, draft flow, preview modal, regression) verified green."
+}

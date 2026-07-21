@@ -1,0 +1,43 @@
+{
+  "summary": "Iter69 WhatsApp/PhonePe-QR/downloads verification. Backend 6/7 pytest passed. Frontend Playwright: all documented flows verified end-to-end (pay page QR, invoice WA modal with no URLs + attachment chips + bank details + PhonePe QR mention, receipt WA modal, invoice/payslip/certificate PDF downloads via new helper, no JS console errors). ONE REAL BUG: the Gmail token-refresh clean-400 fix was only applied to email_module._do_send/send_email; the parallel _refresh_if_needed call at finance.py:2256 (POST /api/finance/invoices/{id}/send) is NOT wrapped in try/except, so it still returns bare 500 'Internal Server Error' when Gmail is disconnected — contradicting the stated iteration goal.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/finance/invoices/{id}/send",
+        "issue": "Still returns 500 (not clean 400) when Gmail OAuth is disconnected. The iter69 fix only wrapped _refresh_if_needed inside email_module._do_send (line 852). finance.py::send_invoice at line 2256 calls _refresh_if_needed(db, token) directly with NO try/except → google.auth.exceptions.RefreshError('deleted_client') propagates as bare 500. Stack trace confirmed in /var/log/supervisor/backend.err.log. Fix: wrap that call the same way (except HTTPException: raise / except Exception: raise HTTPException(400, 'Gmail connection expired — please reconnect...')).",
+        "priority": "MEDIUM"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter69_whatsapp_qr_gmail400.py",
+    "/app/test_reports/pytest/iter69_results.xml"
+  ],
+  "action_items": [
+    "Wrap the _refresh_if_needed call at /app/backend/finance.py:2256 (send_invoice) in try/except HTTPException/Exception → HTTPException(400, '...Gmail reconnect...'). Same pattern already used in email_module.py:851-856. This is the actual scoped fix that iter69 promised but landed only in email_module."
+  ],
+  "critical_code_review_comments": [
+    "finance.py is 2435 lines — carry-over. Splitting recommendation stands. The whatsapp helpers (invoice_whatsapp, receipt_whatsapp, finance_whatsapp_reminder) are three near-parallel functions building similar 'PROJEXINO SOLUTIONS' banner blocks — extract a build_wa_lines(kind, doc) helper to DRY (~40 duplicate lines).",
+    "email_module._do_send wraps _refresh_if_needed properly (lines 851-856). But finance.py has two other _refresh_if_needed call sites: send_invoice (line 2256) and receipt_email (via _gmail_token_or_400). Only send_invoice is unwrapped and leaks 500. Apply the same wrap consistently.",
+    "WhatsAppSendModal.jsx correctly gates whatsapp-share-files-btn behind typeof navigator !== 'undefined' && !!navigator.canShare — verified absent on headless desktop Chromium. Good progressive-enhancement design.",
+    "Finance.jsx openWa passes attachments=[invoice PDF + (unpaid ? Projexino-PhonePe-QR.png : nothing)] — verified via UI: unpaid invoice shows 2 chips, receipt WA shows only 1 receipt-PDF chip. Correct conditional on qr_attach from backend.",
+    "public_payment_qr endpoint reads the PNG on every request instead of caching bytes in module scope. 315KB re-read is trivial but a functools.lru_cache decorator would eliminate the disk hit. Non-blocking.",
+    "PayInvoice.jsx pay-qr-section shows for any non-paid state including 'issued', 'partial', 'overdue' — visually confirmed for the provided unpaid invoice. Paid banner path not visually re-tested but backend already returns paid banner branch and iter68 verified it."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter69_whatsapp_qr_gmail400.py (new — 7 tests: pay-qr x1, /api/d/i/{token} x2, invoice-wa unpaid+paid x2, receipt-wa x1, send-invoice-clean-400 x1)"
+  ],
+  "success_rate": {"backend": "86% (6/7)", "frontend": "100% (all documented flows)"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 — verified working.",
+  "seed_data_creation": "None — tests use existing invoice dc7ed04d-8295-4ee7-a29a-e2a9e21ad947 (unpaid, provided by main agent) + first available paid invoice + first available receipt. No test data left behind.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Reusable pytest at /app/backend/tests/test_iter69_whatsapp_qr_gmail400.py. The one failing test (TestInvoiceSendGmail400.test_send_returns_clean_400_when_gmail_disconnected) becomes a regression check once the finance.py:2256 wrap lands. Frontend verified: [pay-qr-section]+[pay-qr-img naturalWidth=720] on /pay/invoice/{token}, WhatsAppSendModal on desktop shows all testids except whatsapp-share-files-btn (expected — no navigator.canShare in headless Chromium). Download helper (saveOrShareBlob/downloadApiPdf) verified working on desktop for: inv-pdf-{id} (84KB PDF), hr-slip-pdf-{no} (111KB), hrc-download-{id} (62KB). Reminder button (whatsapp-reminder-btn) lives on Finance project Overview tab (not Invoices) and only when f.remaining>0 — script path went straight to Invoices tab so didn't retest it, but no code change affects it; regression should still be green.",
+  "rca_of_the_issue": "iter69 promised: (a) new WA message format without URLs + bank details + QR mention → DONE (verified backend payload + frontend preview bubble). (b) qr_attach flag driving Projexino-PhonePe-QR.png chip → DONE. (c) /api/public/payment-qr → DONE (200, image/png, 315KB, PNG magic bytes ok). (d) /api/d/i/{token} → DONE (200 %PDF, bad token 404). (e) pay page QR section for unpaid → DONE. (f) desktop download regression via new helper → DONE (invoice, payslip, cert all download PDFs, zero console errors). (g) Gmail 400 fix — PARTIAL: only wrapped in email_module.py:851-856 (send_email); finance.py:2256 (send_invoice) still calls _refresh_if_needed unwrapped and returns bare 500. Stack trace in backend.err.log: google.auth.exceptions.RefreshError → uncaught → 500 Internal Server Error. One-line fix: same try/except pattern as email_module."
+}

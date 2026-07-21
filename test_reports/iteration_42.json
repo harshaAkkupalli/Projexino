@@ -1,0 +1,43 @@
+{
+  "summary": "Frontend testing of Chat module attachment (image/video/document) + emoji picker enhancements. All 8 requested test scenarios PASSED end-to-end against the live preview URL. Backend chat endpoints (already mime-agnostic) handled image, video, and document uploads correctly; new frontend handlers, inline media rendering, lightbox, emoji picker (6 tabs), caret-aware emoji insertion, attach chip with size, and 15MB soft-limit warn-toast all work.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Chat lightbox", "issues": ["The lightbox overlay (data-testid='chat-image-lightbox') has the outer onClick close handler, but the inner content motion.div uses stopPropagation. Most of the visible black backdrop is actually covered by the inner motion.div, so clicking the dimmed area near the centre does NOT close the lightbox. Users have to use the small 'Close' button below the media or click far outside the media. Consider a top-right X close button overlaid on the media for clarity (download button is currently at top-right)."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Chat.jsx is 789 lines and combines list, message rendering, lightbox, modals, and emoji picker. Consider extracting NewChannelModal / EditChannelModal / EmojiPickerPopover / MessageBubble into separate files in /pages/portal/chat/ to keep the main file under ~500 lines.",
+    "insertEmoji() calls el.focus() inside requestAnimationFrame, and the textarea has onFocus={() => setShowEmoji(false)}. Result: emoji picker closes after every single emoji insertion (verified during test). The agent context note said the picker should 'stay open across multiple emoji clicks'. If staying-open is desired, decouple focus from picker close (e.g. use a ref flag programmaticFocus.current=true around el.focus()).",
+    "Lightbox close UX: the visible backdrop's clickable region is reduced because the inner content motion.div covers most of it with stopPropagation. Add an explicit X icon button at top-right of the lightbox media, or make the entire backdrop reliably dismissable.",
+    "downloadAttach() builds an <a> with data: URL — fine for small files but data: URLs are size-limited in some browsers (≥~50MB can fail in Firefox/Safari). For larger attachments consider URL.createObjectURL(new Blob([...])) and revoke later.",
+    "videoCache / imageCache state grows unboundedly across channel switches; consider clearing on active channel change to keep memory bounded for long sessions."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (frontend-only request)", "frontend": "100%" },
+  "test_credentials": "admin@projexino.com / Projexino@2026 (used)",
+  "seed_data_creation": "None. Sent test messages (image, doc, video, combined) into the auto-selected 'Projexino Admin' direct channel — clean-up not requested.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Chat page is at /app/chat. Auto-selects first conversation. Verified test ids: chat-attach-btn, chat-attach-chip (with name + size + X), chat-send-btn, chat-input (textarea), chat-emoji-btn, chat-emoji-picker, emoji-tab-{smileys,gestures,hearts,animals,food,symbols}, emoji-{char}, emoji-close, chat-image-{id}, chat-video-{id}, chat-image-lightbox (wrapper for both modes), chat-video-lightbox (inner <video> only). The send button toggles between data-testid='chat-send-btn' (when text or file is set) and data-testid='chat-thumb-btn' (otherwise). File input accept = 'image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rtf,.md,.json'. 15MB soft-limit warning is non-blocking — chip still gets created. Tiny webm with just the 4-byte EBML magic + filler bytes is enough to verify video bubble rendering (the <video controls> renders even with broken source).",
+  "test_results_detail": {
+    "TEST_ACCEPT_ATTR": "PASS",
+    "TEST_IMAGE_ATTACH_CHIP": "PASS (chip shows name + size)",
+    "TEST_IMAGE_SEND_BUBBLE": "PASS (chat-image-{id} testid rendered)",
+    "TEST_IMAGE_LIGHTBOX_OPEN": "PASS",
+    "TEST_DOCUMENT_BUBBLE": "PASS (download chip with .txt filename inside bubble)",
+    "TEST_EMOJI_PICKER_OPEN": "PASS",
+    "TEST_EMOJI_6_TABS": "PASS (smileys/gestures/hearts/animals/food/symbols)",
+    "TEST_EMOJI_INSERT_INTO_TEXTAREA": "PASS (😀 inserted)",
+    "TEST_EMOJI_TAB_SWITCH_AND_2ND_PICK": "PASS (😀✅ in input)",
+    "TEST_COMBINED_TEXT_EMOJI_IMAGE": "PASS (single bubble with 'Combined 😀 test' + inline image)",
+    "TEST_BIG_FILE_WARN_TOAST": "PASS ('big_file.bin is 16.0 MB — uploads larger than 15MB may be slow.')",
+    "TEST_BIG_FILE_NON_BLOCKING": "PASS (chip still set after warn)",
+    "TEST_VIDEO_BUBBLE_INLINE": "PASS (<video controls> renders inside chat-video-{id})",
+    "TEST_VIDEO_LIGHTBOX_OPEN_ON_CLICK": "PASS (chat-video-lightbox rendered)"
+  }
+}

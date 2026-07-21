@@ -1,0 +1,88 @@
+{
+  "summary": "Iteration 13 — Backend-only verification of new features: (1) Notification settings/ringtones, (2) Facebook-style Chat (no BE changes required — covered by existing chat tests still green), (3) Gmail-based auto-emails (email_module wiring + template CRUD + AI generate + status when not connected), (4) Manual /api/email/send + role gating. Created /app/backend/tests/test_notif_email.py with 36 tests covering settings GET/PATCH + role gate + ringtones catalogue, /email/status returns connected:false, default-template auto-seed (8 slugs), template CRUD + 403 gating + default-template protection on DELETE, /email/templates/ai-generate (admin only — accepts 200 or 502; verifies no 500), /email/send returns 400 'Gmail not connected' for admin/manager/hr and 403 for member/intern, /email/log role gating, and event-hook safety tests asserting auth/register, task create, project create, issue create return no 5xx with Gmail off. Full regression: 202/202 pytest tests pass (166 prior + 36 new). Backend health: 100%. Gmail OAuth is NOT connected as expected — all event-email sends silently no-op (send_event_email returns None when db.email_tokens is empty).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "DELETE /api/email/templates/{id}", "issue": "Returns 200 'ok' even when the target is a default template that is NOT deleted (silently protected via is_default filter). Caller has no way to know the delete was a no-op; consider 403/409 with a clearer message."},
+      {"endpoint": "POST /api/email/templates/ai-generate", "issue": "On LLM error responds 502 with raw stringified exception; acceptable per request but consider trimming/structuring the error payload to avoid leaking internal stack details."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verification_results": {
+    "notification_settings": {
+      "GET any role (admin/manager/hr/member/intern)": "PASS — workspace doc returned with all 9 events seeded (task_assigned, project_assigned, issue_assigned, badge_awarded, document_verified, document_rejected, welcome_employee, welcome_intern, chat_mention)",
+      "GET /notification-settings/ringtones": "PASS — returns ['chime','bell','ding','pop','soft','alert','none']",
+      "PATCH admin updates default_ringtone/volume/sound_enabled/desktop_popup/ringtones/events": "PASS — persists and reflects in GET",
+      "PATCH invalid ringtone": "PASS — 400",
+      "PATCH non-admin (manager/hr/member/intern)": "PASS — 403"
+    },
+    "email_status_and_templates": {
+      "GET /email/status w/o Gmail tokens": "PASS — {connected:false}",
+      "GET /email/templates auto-seeds 8 defaults": "PASS — welcome_employee, welcome_intern, task_assigned, project_assigned, badge_awarded, issue_assigned, document_verified, document_rejected all present, no _id leaks",
+      "POST /email/templates admin auto-slug+UUID": "PASS",
+      "POST non-admin (manager/hr/member/intern)": "PASS — 403",
+      "PATCH admin updates": "PASS",
+      "PATCH non-admin": "PASS — 403",
+      "DELETE default-template protection": "PASS — default doc remains after DELETE (returns 200 ok)",
+      "DELETE admin removes custom template": "PASS",
+      "DELETE non-admin": "PASS — 403",
+      "POST /email/templates/ai-generate admin": "PASS — returned 200 with subject + body_html (category='ai') in this run; test accepts 200 OR 502, never 500",
+      "POST ai-generate non-admin": "PASS — 403"
+    },
+    "email_send_and_log": {
+      "POST /email/send admin (Gmail off)": "PASS — 400 'Gmail not connected'",
+      "POST /email/send manager (Gmail off)": "PASS — 400",
+      "POST /email/send hr (Gmail off)": "PASS — 400",
+      "POST /email/send member": "PASS — 403",
+      "POST /email/send intern": "PASS — 403",
+      "GET /email/log admin": "PASS — [] array",
+      "GET /email/log manager": "PASS",
+      "GET /email/log member": "PASS — 403"
+    },
+    "event_hook_safety_gmail_off": {
+      "POST /auth/register": "PASS — 200, welcome_employee email no-ops silently",
+      "POST /tasks with assignee": "PASS — task_assigned notify no-ops",
+      "POST /projects with members": "PASS — project_assigned notify no-ops",
+      "POST /issues with assignee": "PASS — issue_assigned notify no-ops (no 5xx)"
+    },
+    "regression": "202/202 pytest pass — backend_test (30), test_batch1 (11), test_batch23 (7), test_batch_certificate (9), test_chat_crossrole (12), test_extensions (30), test_issues_and_cert (20), test_notif_email (36 NEW), test_phase3 (23), test_phase4 (24)."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_notif_email.py",
+    "/app/test_reports/pytest/iter13_notif_email.xml",
+    "/app/test_reports/pytest/iter13_full.xml"
+  ],
+  "action_items": [
+    "(Optional) Make DELETE /api/email/templates/{id} return 403/409 when target is is_default=true instead of silent 200.",
+    "(Optional) Trim AI generation 502 payload to avoid leaking stack details to client.",
+    "Frontend testing for the 4 new UI surfaces (notification ringtone picker, FB-style chat shell, email template manager, per-entity Send-email button) was OUT OF SCOPE for this iteration — request explicit frontend round next."
+  ],
+  "critical_code_review_comments": [
+    "notif_engine.send_event_email correctly no-ops when (a) event email channel disabled, (b) template slug not found, (c) email_tokens absent. Exception path is broad except → returns None & logs — safe for the 'must not 500 core endpoints' requirement.",
+    "notify() helper writes in-app notification first and only attempts email if variables is not None — good guard; callers should always pass `variables={...}` when an email is desired.",
+    "email_module._save_tokens has dead code: `doc_get_existing_from_name(db) if False else ''` — confusing leftover; safe but should be cleaned up. (Real reconnect-preservation is correctly handled in gmail_callback, not _save_tokens.)",
+    "email_module._do_send wraps Gmail API in try/except and re-raises as 502 — good. But /email/send endpoint correctly raises 400 *before* reaching _do_send when token missing, so admin/manager/hr get a clean 400 without Google client noise. Verified.",
+    "AI generation endpoint reads EMERGENT_LLM_KEY at request-time (not module-level) — fine. Uses with_model('openai','gpt-5.2'). If model name changes upstream, raises 502 — acceptable.",
+    "DELETE /email/templates/{tid} uses Mongo filter {id: tid, is_default: {$ne: True}}. Caller gets 200 even if nothing was deleted (default tpl). Consider returning {'ok': True, 'deleted': delete_result.deleted_count} or a 403/409.",
+    "Default template seeding (_seed_templates) runs on every GET /email/templates — idempotent via per-slug existence check, but adds 8 Mongo round-trips on every list call. Consider caching the 'seeded' flag in a workspace doc.",
+    "register_notif_settings.patch_notif_settings silently drops unknown ringtone keys (only writes if v in ALLOWED_RINGTONES). No explicit 400 for bad ringtone in the `ringtones` map — only the `default_ringtone` validates strictly. Minor inconsistency.",
+    "ALLOWED_RINGTONES includes 'none' — good for opt-out per event; verified via catalogue endpoint."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_notif_email.py"
+  ],
+  "success_rate": {
+    "backend": "100% (202/202 pytest, including 36 new notif/email tests)",
+    "frontend": "N/A — out of scope this iteration"
+  },
+  "test_credentials": "admin@projexino.com/Projexino@2026, manager@projexino.com/Manager@2026, hr@projexino.com/HR@2026, member@projexino.com/Member@2026, intern@projexino.com/Intern@2026 — all working.",
+  "seed_data_creation": "Tests create one TEST_Template_X email template (created → patched → deleted in same suite), one TEST_Task_*, one TEST_Proj_*, one TEST_Issue_*, and one TEST_reg_*@projexino.com auth/register user per run. Tasks/projects/issues are deleted in the same test; the registered user remains (no DELETE-user endpoint exists). Notification settings are patched then restored to defaults in the test_patch_admin_updates teardown.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run with REACT_APP_BACKEND_URL exported OR rely on _read_frontend_env() fallback (only test_notif_email.py and test_chat_crossrole.py have the fallback — test_phase3.py and test_issues_and_cert.py REQUIRE the env var). To run the full suite: `export REACT_APP_BACKEND_URL=$(grep '^REACT_APP_BACKEND_URL=' /app/frontend/.env | cut -d= -f2) && python -m pytest backend/tests/`. Gmail OAuth remains disconnected; once admin runs OAuth flow, /api/email/send will move from 400 to 200/502; event hooks will then start producing real entries in db.email_log. Frontend surfaces for the 4 new features have NOT been tested — schedule a frontend round next.",
+  "rca of the issue": "N/A — this iteration was a feature-verification round, not a bug fix. All 4 feature surfaces (notif settings, chat shell, email templates+send, manual send-email hooks) verified at the API layer with Gmail intentionally disconnected. notify()/send_event_email() correctly degrade to no-op so create_task/create_project/create_issue/award_badge/verify_document/auth_register stay 2xx even with no Gmail tokens, satisfying the 'must not 500 core endpoints' requirement."
+}

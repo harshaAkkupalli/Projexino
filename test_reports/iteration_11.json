@@ -1,0 +1,97 @@
+{
+  "summary": "Tested new Issues & Errors tracker (BE + FE), Chat auto-scroll fix, and Certificate signatory removal. 30/30 regression endpoints still pass. 9/11 issues-feature backend assertions pass. Frontend Issues page + Chat scroll fix verified end-to-end via Playwright. Certificate PDF correctly removes 'Authorized Signatory'/'Reporting Manager'/'SEAL OF EXCELLENCE' and contains 'DIGITALLY ISSUED CERTIFICATE' + tagline.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET/PATCH/POST /api/issues/{id}",
+        "issue": "Issues are owner_id-scoped, but each auto-seeded role user (admin/member/manager/hr/intern) gets their own owner_id (their own id, since owner_id=None in DB). Result: a seeded member CANNOT see an issue created by admin → returns 404. This breaks the spec which requires (a) non-assignee member to receive 403 (not 404) on PATCH and (b) 'any authenticated user' to be able to comment. The Issues feature only works inside a single tenant; cross-role flows in the seeded test accounts are impossible.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "TeamPicker / chat assignee dropdown", "issues": ["Pre-existing React warning: 'Encountered two children with the same key' (e.g. 'Test User', 'TEST_UpdatedName') — list rendering uses display-name as key, which is not unique. Not a blocker but spams the console."]}
+    ]
+  },
+  "verification_results": {
+    "issues_backend": {
+      "POST /api/issues (admin, with image+url)": "200, returns id + has_image:true + comments_count:0 + no _id, image_base64 stripped from list",
+      "GET /api/issues (admin)": "200, list contains created issue, all items missing _id and image_base64",
+      "GET /api/issues?status=open": "200, all items have status=open",
+      "GET /api/issues?type_=error": "200, all items have type=error",
+      "GET /api/issues/{id} (admin)": "200, returns full doc incl. image_base64 (== uploaded) and comments[]",
+      "PATCH /api/issues/{id} {status:in_progress} (admin)": "200, persisted via GET",
+      "PATCH as member (non-assignee)": "FAIL: returns 404 instead of expected 403 — see backend_issues.critical",
+      "POST /api/issues/{id}/comments (admin)": "200, comment shows in GET, author_role=admin",
+      "POST /api/issues/{id}/comments (member)": "FAIL: returns 404 — same tenant scoping problem",
+      "DELETE /api/issues/{id} (member)": "403 (correctly forbidden by role check before tenant check)",
+      "DELETE /api/issues/{id} (admin)": "200, GET after delete = 404"
+    },
+    "certificate": {
+      "GET /api/me/intern/certificate (intern)": "200, application/pdf, %PDF magic header",
+      "PDF text checks (via pdfminer.six)": {
+        "contains 'DIGITALLY ISSUED CERTIFICATE'": true,
+        "contains 'This document is digitally issued' tagline": true,
+        "contains 'Authorized Signatory'": false,
+        "contains 'Reporting Manager'": false,
+        "contains 'SEAL OF EXCELLENCE'": false
+      }
+    },
+    "frontend": {
+      "/app/issues portal-issues testid": true,
+      "Sidebar 'Issues & Errors' nav entry": true,
+      "add-issue-btn → create-issue-modal opens": true,
+      "Form fields (title/textarea/url/file)": "all writable; tiny PNG uploaded",
+      "issue-submit closes modal + new row appears in table": true,
+      "Table rows count after create": 4,
+      "Row click opens issue-detail-modal": true,
+      "issue-image-preview / issue-url-link visible": true,
+      "All 5 status buttons (open/in_progress/pending/completed/closed) visible": true,
+      "issue-status-in_progress click → status update": "ok",
+      "issue-comment-input + submit appends a comment-{id} element": "ok (1 rendered)",
+      "Filters issue-filter-status / issue-filter-type / issue-search present": true
+    },
+    "chat_scroll_fix": {
+      "After channel open — window.scrollY": 42,
+      "Inner scroller scrollTop / scrollHeight / clientHeight": "0 / 820 / 820 (already filling viewport → trivially at bottom)",
+      "After sending a message — window.scrollY": 42,
+      "After sending — scroller still at bottom": true,
+      "Latest 'Playwright auto message' visible in messages panel": true,
+      "Conclusion": "Page no longer scroll-jumps; inner container is the scrollable region and is auto-pinned to bottom — bug fix CONFIRMED"
+    },
+    "regression": "30/30 tests in backend_test.py PASS (auth, leads, tasks, team, dashboard, CORS) + 7/7 misc /api endpoints (dashboard, leads, tasks, team, projects, manager/interns, settings, badges) PASS"
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_issues_and_cert.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iter11_results.xml",
+    "/app/test_reports/pytest/iter11_regression.xml"
+  ],
+  "action_items": [
+    "FIX: Issues feature owner_id scoping is too restrictive. Either (a) resolve owner_id by looking up the admin tenant the user belongs to (each seeded role-user shares the admin's owner_id) or (b) drop the owner_id filter from GET/PATCH/POST-comment paths and rely solely on role/assignee checks. As-implemented, ONLY the user who created the issue can see/patch/comment on it — manager/member/hr/intern from the same org cannot see each other's issues. This contradicts the spec line 'anyone authenticated to comment' and the test expectation that a non-assignee member receives 403 (currently gets 404).",
+    "(Polish) Fix React 'duplicate key' console spam in team picker / chat sidebar — keys are using display name; switch to user id/email."
+  ],
+  "critical_code_review_comments": [
+    "issues.py: tenant scoping uses `user.get('owner_id') or user.get('id')`. Because the seeded role users (admin@/manager@/member@/hr@/intern@) all have owner_id=None, each effectively becomes their own tenant. This breaks the multi-role collaboration story for issues. Recommend: when seeding the role accounts, set owner_id = admin.id; OR change Issues to use a workspace/org collection instead of owner_id fallback.",
+    "issues.py delete_issue: role check happens BEFORE owner_id scope, so non-admins get 403 even for an issue they cannot see. Fine, but inconsistent with PATCH/GET which leak existence via 404 vs 403.",
+    "Issues.jsx: TeamPicker list uses non-unique React keys (names) — fix to use stable id.",
+    "issues.py: list_issues uses `it['has_image'] = bool(it.get('_image_present'))`. The `_image_present` field is an internal field but is also returned in the list payload (it's not excluded in the find projection). Either drop it from the projection or strip it before returning to keep the API surface clean."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_issues_and_cert.py"
+  ],
+  "success_rate": {
+    "backend": "9/11 issues-feature tests pass (82%) + 30/30 regression pass + 1/1 certificate pass = 40/42 overall (95%)",
+    "frontend": "100% — Issues page, create/detail flow, status pills, comments, filters, chat scroll fix and chat send all verified"
+  },
+  "test_credentials": "admin@projexino.com / Projexino@2026, member@projexino.com / Member@2026, intern@projexino.com / Intern@2026 — all working",
+  "seed_data_creation": "Created (then deleted) 1 issue via backend test + 1 issue via Playwright. Playwright-created issue NOT cleaned up (still in admin tenant); main agent may wipe via DELETE /api/issues/{id} as admin if desired.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend Issues feature has a real cross-user visibility bug due to owner_id scoping with seeded role accounts each having distinct owner_ids. After main agent fixes (probably by making seeded roles share admin's owner_id, OR by removing owner_id scoping from /issues), re-run /app/backend/tests/test_issues_and_cert.py — the two currently-failing tests (test_member_cannot_patch_when_not_assignee, test_comment_by_member) should then pass. Certificate + chat-scroll fixes are fully verified.",
+  "rca of the issue": "Issues router does `owner_id = user.get('owner_id') or user.get('id')` and scopes every query by it. The auto-seeded role accounts (admin/manager/hr/member/intern) all have owner_id=None in mongo, so the fallback makes each user their own tenant. Consequently when member@projexino.com logs in and tries to PATCH/comment an issue created by admin@projexino.com, the existence check `db.issues.find_one({id, owner_id: member.id})` returns None → 404, before the role/assignee logic even runs. Fix options: (1) in seed_admin / seed_role_users, set owner_id=admin.id for every non-admin seeded role; or (2) treat owner_id as workspace and resolve every authenticated user to the workspace's admin owner_id; or (3) drop owner_id from the Issues feature and use role/assignee semantics only (simpler but loses true multi-tenancy)."
+}

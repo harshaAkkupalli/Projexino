@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 6 — Landing polish + Manager doc verify/reject end-to-end. BACKEND: all 24 phase4 pytest tests still pass (test_phase4.py, 11.7s, 100%). FRONTEND: (1) Landing page (/) loads with [data-testid=page-landing], hero-cta-primary, all 8 service-card-0..7 with new useTilt-driven 3D cards, see-all-services, cta-bottom-primary — mouse-move tilt does NOT throw any JS error (0 console errors during mouse manipulation). (2) Smoke tests for /services, /about, /portfolio, /contact and back to / all load cleanly with no errors. RouteLoader visible on first load. (3) Manager Hub (/app/manager) loads as admin with 5 KPI cards (Interns=5, Active today=3, At-risk=4, Badges=4, Tasks overdue=0), 5 intern rows incl. Projexino Intern (f221d3a9...), live feed sorted desc. (4) Verify/Reject flow: expanded target intern row, clicked reject-{id}-bank_details, window.prompt appeared (handled via page.on('dialog')), backend POST /api/manager/verify-document recorded verified=False + verifier_note + verified_by='Projexino Admin' + verified_at. Then clicked verify-{id}-bank_details — succeeded. Then re-rejected for intern badge test — succeeded. (5) Intern view (/intern/documents) for intern@projexino.com: Bank Account Details card now shows red 'Rejected' badge via [data-testid=doc-status-bank_details], and [data-testid=doc-rejection-bank_details] shows 'Rejected by Projexino Admin. Please re-upload. \"Photo quality is too low, please re-upload a clearer image.\"' Other 4 docs show amber 'Pending review' tri-state badge. Re-upload CTA shown only for the rejected slot.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Intern docs + Landing (browser console)", "issues": ["[carry-over from iter 5] Nested <a> hydration warning — Logo component already renders an anchor and is wrapped inside another <Link to='/'>. Not user-visible but emits 4 React warnings. Recommend Logo accept asLink={false} prop or unwrap outer Link."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase4.py",
+    "/app/test_reports/pytest/phase4_iter6.xml"
+  ],
+  "action_items": [
+    "(Low priority, carried over) Fix nested <a> hydration warning — Logo inside <Link to='/'> in Login.jsx and Landing.jsx service cards."
+  ],
+  "critical_code_review_comments": [
+    "Manager.jsx verify() now correctly differentiates verify vs reject — only prompts on reject path and passes the note to /api/manager/verify-document (line 25-36). Behaviour confirmed live.",
+    "InternDocuments.jsx tri-state badge logic is solid: verified===true → emerald 'Verified', verified===false && verified_at → red 'Rejected', else amber 'Pending review'. doc-rejection-{dt} only renders for the rejected state.",
+    "useTilt hook works smoothly without throwing on mouse-move; no requestAnimationFrame leaks observed (zero console errors during landing interaction).",
+    "Backend /api/manager/verify-document persists verifier_note, verified_by (user name), verified_at — verified live via direct API GET after UI action.",
+    "(carry-over) Logo nested-anchor hydration warning remains; non-functional but pollutes console with 4 React warnings on intern documents page."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (24/24 phase4 tests)", "frontend": "100% — landing/8 service tilt cards/route smoke, manager verify+reject+re-verify+re-reject all succeed, intern Rejected badge + reason render correctly"},
+  "test_credentials": "admin@projexino.com / Projexino@2026, manager@projexino.com / Manager@2026, hr@projexino.com / HR@2026, intern@projexino.com / Intern@2026 — all verified live.",
+  "seed_data_creation": "Re-submitted bank_details for intern@projexino.com (file_name=bank_test.pdf). Currently in rejected state with verifier_note 'Photo quality is too low...'. Other 4 docs (pan_card, id_proof, address_proof, resume) are in submitted/pending state.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Target intern_id for intern@projexino.com is f221d3a9-2654-43e7-b76b-cabba122a845. Manager rows don't include email in visible text — search by name/designation or call GET /api/manager/interns first to map id. For window.prompt during reject use page.on('dialog', lambda d: asyncio.create_task(d.accept('reason'))). Login form: if input[type=email] not visible, click 'Continue' role card first to flip the form.",
+  "rca of the issue": "No outstanding bugs. Only carry-over cosmetic warning (nested <a> from Logo inside Link). Recommendation: add asLink prop to Logo in /app/frontend/src/components/Logo.jsx and pass asLink={false} when used inside an outer <Link>."
+}

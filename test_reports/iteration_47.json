@@ -1,0 +1,61 @@
+{
+  "summary": "Iter 47 - Verified self-host AI portability (Ollama + OpenRouter additions). Backend: 9/9 pytest passed after fixing 1 critical regression in PUT /api/ai/config validator (regex didn't allow 'ollama' or 'openrouter'). env_providers_detected returns ['emergent'] on this tenant (correct). Runtime override (PUT/GET/DELETE) works for ollama. ai_provider env-priority resolution for ollama and openrouter validated via monkeypatch. Ollama unreachable raises clean RuntimeError ('Could not reach Ollama at ...'). OpenRouter invalid key raises clean RuntimeError (not a Python crash). /api/ai/test endpoint returns well-formed JSON. Frontend: All 6 provider cards render in correct order (Ollama, OpenRouter, Gemini, OpenAI, Anthropic, Emergent); FREE badges ONLY on first three. Selecting ai-prov-ollama switches the api_key input to type=text with placeholder http://localhost:11434, hides the eye toggle, and shows the Ollama install hint. Ollama model select shows all 6 models (llama3.2, llama3.1, qwen2.5, mistral, phi3, gemma2). OpenRouter card model select shows 4 :free models + Claude 3.5 Sonnet + GPT-4o. Save & activate flow worked (Toast 'Saved' shown, page reload showed 'Provider: Ollama · Model: llama3.2 · Key: http**1434 · Source: db'). SELF_HOST.md exists with all required sections (Stack, Ollama quickstart, env-var matrix, security checklist, troubleshooting).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tested_features": {
+    "ai_config_get": "PASS - returns env_providers_detected list with 'emergent', source='env'.",
+    "ai_config_put_ollama": "PASS (after fix) - regex updated to allow ollama/openrouter, PUT now returns 200 and persists with source='db'.",
+    "ai_config_delete": "PASS - DELETE clears DB override, source reverts to 'env'.",
+    "ai_test_endpoint": "PASS - returns 200 + {ok, provider, response|error} as well-formed JSON (no crash).",
+    "ai_provider_ollama_env_detection": "PASS - active_provider() returns 'ollama' when OLLAMA_BASE_URL set and no higher-priority key.",
+    "ai_provider_openrouter_env_detection": "PASS - active_provider() returns 'openrouter' when OPENROUTER_API_KEY set and no higher-priority key.",
+    "ai_provider_ollama_error_surface": "PASS - closed-port base_url raises RuntimeError containing 'Could not reach Ollama'.",
+    "ai_provider_openrouter_error_surface": "PASS - invalid api_key raises clean RuntimeError (auth/401 surfaced via SDK).",
+    "ai_provider_openrouter_base_url": "PASS - source inspection confirms base_url='https://openrouter.ai/api/v1'.",
+    "frontend_provider_grid": "PASS - 6 cards in expected order: ollama, openrouter, gemini, openai, anthropic, emergent.",
+    "frontend_free_badges": "PASS - FREE badge ONLY on ollama/openrouter/gemini.",
+    "frontend_ollama_card_behavior": "PASS - clicking ollama: input type=text, placeholder='http://localhost:11434', eye icon hidden, helper text mentions Install from ollama.com, model select lists all 6 Ollama models.",
+    "frontend_openrouter_models": "PASS - 4 :free entries + Claude Sonnet 3.5 + GPT-4o present in model select.",
+    "frontend_save_and_activate": "PASS - Saving ollama+http://localhost:11434+llama3.2 shows 'Saved' toast; after reload, 'Provider: Ollama · Model: llama3.2 · Key: http••••••••••••••1434 · Source: db' chip visible.",
+    "self_host_md": "PASS - /app/SELF_HOST.md exists with all 11+ sections (TL;DR Ollama quickstart, Stack table, env-var matrix, security checklist, troubleshooting table).",
+    "no_regression_existing_providers": "PASS - openai/anthropic/gemini/emergent code paths unchanged; /api/ai/test returns clean JSON on this tenant (provider=emergent)."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter47_self_host_ai.py",
+    "/app/test_reports/pytest/iter47_self_host.xml"
+  ],
+  "action_items": [
+    "[FIXED by testing agent] PUT /api/ai/config Pydantic validator regex updated from '^(openai|anthropic|gemini|emergent)$' to '^(openai|anthropic|gemini|openrouter|ollama|emergent)$' in /app/backend/phase_g.py:39 - this was a critical regression blocking the entire ollama/openrouter save flow. Please verify on next deploy.",
+    "Verify the 'Clear override' button behaves correctly end-to-end from the UI (backend DELETE works fine; UI button visibility was not asserted in this run because save+reload flow consumed the script budget). Quick manual verification recommended."
+  ],
+  "critical_code_review_comments": [
+    "CRITICAL (now fixed): phase_g.py AIConfigIn.provider regex must include all providers ai_provider supports. Add unit/integration test to catch any future drift between PROVIDERS array (frontend) and the regex.",
+    "ai_provider.py _effective_provider_and_key() uses OLLAMA_BASE_URL OR PROJEXINO_USE_OLLAMA=1 to detect ollama. The error message inside chat_completion still says 'Set one of OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or EMERGENT_LLM_KEY' - update it to also mention OLLAMA_BASE_URL and OPENROUTER_API_KEY so self-hosters get accurate guidance.",
+    "/api/ai/test returns HTTP 200 even on failure with ok=false. That's fine for UI handling but consider returning 502 in addition to ok=false so monitoring/alerting tools can detect upstream failures.",
+    "Ollama BASE URL persists in DB as plain text (under api_key) - that's acceptable but the masking function _mask was designed for API keys. The UI shows 'http••••••••••••••1434' which is slightly odd for a URL; consider not masking when provider=='ollama' for clearer UX.",
+    "SELF_HOST.md section 6 says click 'Test now' shows a green response - confirmed UI button exists. However on a brand-new install with only OLLAMA_BASE_URL set but no model pulled, the 'Test now' click will fail with a model-404 message. Consider adding a one-line note about running 'ollama pull llama3.2' BEFORE clicking Test now (currently only mentioned in section 10 troubleshooting).",
+    "PROVIDER_MODELS in AISettings.jsx has only one OpenRouter free model defaulted; consider adding short-name aliases or grouping :free vs paid in the dropdown for clarity."
+  ],
+  "updated_files": [
+    "/app/backend/phase_g.py (line 39 - regex pattern updated to allow ollama + openrouter)",
+    "/app/backend/tests/test_iter47_self_host_ai.py (new pytest suite, 9 tests)",
+    "/app/test_reports/iteration_47.json"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 after 1 fix)",
+    "frontend": "100% (provider grid, FREE badges, ollama card behaviour, openrouter models, save & activate persistence all verified)"
+  },
+  "test_credentials": "admin@projexino.com / Projexino@2026",
+  "seed_data_creation": "Temporarily set ai_runtime_config to {provider:ollama, api_key:http://localhost:11434, model:llama3.2} during the save & activate test - explicitly cleared via DELETE /api/ai/config at end of run. Final source is back to 'env' (emergent). No leftover seed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Self-host AI portability is now production-ready. Key files: /app/backend/ai_provider.py (provider dispatcher + 6 providers), /app/backend/phase_g.py (ai/config CRUD - regex now allows all 6), /app/frontend/src/pages/portal/AISettings.jsx (6-card UI with FREE badges + ollama base-URL mode), /app/SELF_HOST.md. Tenant env on this preview: EMERGENT_LLM_KEY is set, no other provider keys, so active_provider() == 'emergent' and env_providers_detected == ['emergent']. Use /app/backend/tests/test_iter47_self_host_ai.py as the regression suite. The frontend Clear-override button is rendered via {cfg?.source === 'db' && <button>Clear override</button>} - confirm it appears when DB override is active.",
+  "rca_of_issue": "Root cause of the critical fix: When the developer added 'ollama' and 'openrouter' to ai_provider.py and to the AISettings.jsx PROVIDERS array, they forgot to expand the matching Pydantic regex in phase_g.py:39 (AIConfigIn.provider). Result: clicking 'Save & activate' for ollama/openrouter returned 422 string_pattern_mismatch from FastAPI before reaching the handler. Fix: extend the regex to include all 6 providers. Reproduction: PUT /api/ai/config with body {provider:'ollama', api_key:'http://localhost:11434', model:'llama3.2'} before fix -> 422; after fix -> 200. Mitigation: add a backend unit test that PUTs each provider in the PROVIDERS array (already covered by test_put_ollama_override_and_persist in iter47 suite; consider adding similar coverage for openrouter as a parametrized test in Phase 2)."
+}

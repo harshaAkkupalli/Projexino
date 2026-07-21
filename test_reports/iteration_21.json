@@ -1,0 +1,62 @@
+{
+  "summary": "Phase G + H fully verified — AI Settings (DB override + masked key + test), reliable PDF doc streaming, lifecycle task full, super-admin user editor, Connections (org chart + my connections), and the Calendly-style booking system (pages CRUD + public slot generation respecting Mon-Fri working hours / advance_days / min_notice / buffer + public booking with 409 conflict + my-bookings / upcoming / cancel). 32/32 new tests pass in /app/backend/tests/test_phase_gh.py. Combined regression Phase A+B+C+D+E+F+G+H: 102/102 PASS in ~26s. GMAIL_SCOPES now includes calendar.events (verified at import-time). Test data cleaned up (3 stray TEST_ tasks removed; booking pages/bookings deleted by their own teardown fixtures).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/doc-verification/intern/{owner_id}/{doc_type}/file",
+        "issue": "The non-priv owner check (`user['id'] != owner_id`) compares the caller's user_id against the URL's owner_id which is the intern_record_id — these are different IDs (intern records have their own UUID, linked via linked_user_id or email). Result: even the owning intern cannot stream their own file via this endpoint and gets 403. Priv roles (super_admin/admin/manager/hr) still work, which covers the verification preview use-case, but if the intern UI ever calls /file it will 403. Suggestion: also resolve intern by `db.interns.find_one({'$or':[{'id':owner_id},{'linked_user_id':user['id']},{'email':user['email'].lower()}]})` and allow if found, OR have the frontend always pass the intern_record_id and additionally check `intern.get('linked_user_id') == user['id'] or intern.get('email','').lower() == user.get('email','').lower()`."
+      },
+      {
+        "endpoint": "GET /api/ai/config",
+        "issue": "Cosmetic — the `provider` field in the response uses Python conditional precedence that resolves `provider or from_env_provider if from_env_provider != 'none' else None`. When DB has no override and env has no key it returns None; when env has a key but DB also has one, it falls through correctly. Behaviour is OK but the expression is fragile; consider parenthesising."
+      },
+      {
+        "endpoint": "POST /api/booking/pages/{slug}/book",
+        "issue": "Conflict detection only matches on EXACT `starts_at` ISO string equality. Two bookings whose windows overlap but don't share a starts_at (e.g., a longer duration page or differing tz offsets) would not collide. For the current single-duration-per-page model this is fine, but a future tester should be aware."
+      },
+      {
+        "endpoint": "GET /api/booking/upcoming",
+        "issue": "When a member/intern (not in PRIV_VIEW) calls /upcoming they get an empty list silently — which is what the dashboard card needs. Not a bug, just confirming behaviour is reasonable."
+      }
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_phase_gh.py",
+    "/app/backend/tests/test_phase_a_rbac.py",
+    "/app/backend/tests/test_phase_bcd.py",
+    "/app/backend/tests/test_phase_ef.py",
+    "/app/test_reports/pytest/phase_gh.xml",
+    "/app/test_reports/pytest/phase_all.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: fix the /doc-verification/{kind}/{owner_id}/{doc_type}/file owner check so the owning intern can also stream their own file (currently only priv roles can). See minor[0].",
+    "OPTIONAL: in booking conflict check, also reject overlapping windows (not only exact starts_at matches)."
+  ],
+  "critical_code_review_comments": [
+    "phase_g.AdminUserUpdate currently allows updating `reporting_manager_id` to any string with no existence check on db.users — a typo would silently break /connections/me. Consider validating that the referenced user exists and is not the same user (no self-loop).",
+    "phase_g.set_any_user_avatar accepts a raw dict payload — Pydantic model would be more robust and also auto-document the schema in /docs.",
+    "phase_h._generate_slots uses tzinfo=timezone.utc for every slot — but the page stores `timezone_name` (default Asia/Kolkata). On the wire we emit a UTC ISO that the frontend has to convert; works but a frontend timezone-tester should confirm slot rendering matches the admin's TZ.",
+    "phase_h.public_book wraps Google Calendar event creation in try/except and continues even on failure — good resilience. The booking row is saved AFTER the gcal attempt, so any future timeout on Google's side will slow the public booking response. Consider saving the booking first, then fire-and-forget gcal via background task.",
+    "phase_h._gcal_creds hardcodes the scopes list — fine for now but should re-use email_module.GMAIL_SCOPES + the calendar.events constant to keep them in sync.",
+    "phase_g.get_task_full membership check uses `user.get('name','') in members` which is name-string membership — fragile against duplicate names; prefer email or user_id matching."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase_gh.py (new, 32 tests covering all Phase G + H endpoints + GMAIL_SCOPES check)"
+  ],
+  "success_rate": {
+    "backend_phase_gh": "100% (32/32)",
+    "backend_phase_a_regression": "100% (16/16)",
+    "backend_phase_bcd_regression": "100% (29/29)",
+    "backend_phase_ef_regression": "100% (25/25)",
+    "backend_combined": "100% (102/102)"
+  },
+  "test_credentials": "admin@projexino.com / Projexino@2026; manager@projexino.com / Manager@2026; hr@projexino.com / HR@2026; member@projexino.com / Member@2026; intern@projexino.com / Intern@2026. All loaded from /app/memory/test_credentials.md.",
+  "seed_data_creation": "Tests create-and-teardown ephemeral data: a TEST Discovery Call booking page (auto-deleted by class teardown), two ephemeral public bookings (cancelled in-test), a TEST_task per test_task_full session (manual cleanup script ran and removed 3 stray tasks), and one ID-proof PNG submitted by intern (left in place — same as previous iterations).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Full backend suite is now 102/102. Run with: `MONGO_URL=mongodb://localhost:27017 DB_NAME=projexino_db pytest /app/backend/tests/test_phase_a_rbac.py /app/backend/tests/test_phase_bcd.py /app/backend/tests/test_phase_ef.py /app/backend/tests/test_phase_gh.py -q` (~26s). IMPORTANT: pytest does NOT automatically pick up /app/backend/.env when invoked from /app — you MUST export MONGO_URL/DB_NAME inline (the Phase E/F tests open a direct motor connection). Public booking endpoints require no auth: /api/booking/pages/{slug}/public, /slots?date=YYYY-MM-DD, /book. Pick Mon-Fri dates for slots (Sat/Sun => []). Pages teardown is per-class so re-running the suite is idempotent. The Phase G `/ai/test` endpoint uses EMERGENT_LLM_KEY (env) — was returning ok:true with a real text response in 11s on the live preview.",
+  "rca_of_the_issue": "No new bug surfaced. One pre-existing behavioural quirk confirmed: /doc-verification/.../file's non-priv owner check uses user_id vs intern_record_id which are different. For the current frontend (DocVerification.jsx) the caller is always a priv role so it's not user-facing — but flagged for E1."
+}

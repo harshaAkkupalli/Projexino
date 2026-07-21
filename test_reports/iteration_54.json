@@ -1,0 +1,42 @@
+{
+  "summary": "HR Letters iter 54 — Company Profile (letterhead) persistence + HR Letters relocated inside HR Module tab. ALL fixes verified end-to-end.  Backend: 6/6 iter54 tests + 11/11 iter53 regression tests pass (17/17 = 100%). GET/PUT /api/hr/letters/company-profile bootstraps DEFAULT_COMPANY_PROFILE, persists all 15 fields, returns updated values on re-GET, and rejects intern PUT with 403. PDF renders with the persisted TestCo values embedded in the header/footer/CIN/GSTIN, and old hardcoded strings ('Sattva Global City', 'hello@projexino.com') are ABSENT from extracted PDF text.  Frontend: /app/hr-letters → 302 <Navigate> to /app/hr?tab=letters (Feature #2b ✓). HR Module tab strip includes 'hr-tab-letters' pill at index 2, between 'hr-tab-onboarding' and 'hr-tab-team-access' (Feature #2 ✓). Deep-link reload of /app/hr?tab=letters lands on Letters tab (page-hr-letters visible). Launchpad has NO standalone HR Letters card — only 'HR Module' card (Feature #2c ✓). Letterhead settings modal opens with all 15 fields pre-filled from backend, save triggers 'Letterhead saved · will apply to all future PDFs' toast + modal closes + subsequent GET returns new values (Bug #1c ✓). Company profile has been reset back to Projexino defaults after the tests so the app doesn't leak UITest/TestCo state.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_hr_letters_iter54.py",
+    "/app/backend/tests/test_hr_letters_iter53.py",
+    "/app/test_reports/pytest/iter54_hr_letters.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "hr_letters_module.py `_brand_html` uses f-string interpolation of profile values directly into HTML — if an admin ever enters '<' or '>' in company_name/tagline/address/footer_note (e.g. 'Foo <> Bar'), it can break the WeasyPrint HTML or worse, allow HTML injection. Recommend passing every profile value through `html.escape()` before substitution. Currently ONLY reachable by an admin/HR account, so severity is low, but still an easy hardening win.",
+    "PUT /hr/letters/company-profile accepts any string for `logo_url` — no URL validation, no allow-list of hosts. A rogue admin could point it at a tracking pixel or an internal SSRF-baiting URL that WeasyPrint would then fetch during PDF render. Consider validating scheme in (http, https, data:image/) and limiting size.",
+    "CompanyProfileIn allows partial updates (all fields Optional) but the PUT endpoint only $sets fields that are `not None`, so setting a field to empty string '' correctly clears it — good. However, there is no way to clear `logo_url` back to the default because empty string would be persisted; consider treating '' on `logo_url` as 'reset to LOGO_URL default'.",
+    "The @bottom-left / @bottom-center @page slots in WeasyPrint accept quoted CSS content strings but the company_name / contact fields are inserted RAW inside the f-string quotes. If an admin puts a double-quote in company_name or address_line1, the CSS breaks (WeasyPrint will throw or render blank footers). Escape double-quotes at minimum.",
+    "HrLetters.jsx `LetterheadSettingsModal` — no client-side validation on email/phone/website/pincode/logo_url; a typo silently saves. Add a minimal regex or Zod schema (mirror Pydantic) for UX + safety.",
+    "Deep-link handling: URL /app/hr?tab=letters correctly renders the Letters tab, but there is no aria-selected='true' on the active tab pill. Screenshot shows the visual orange highlight, but for a11y consumers a proper aria-selected attribute would help. (Cosmetic — not blocking.)",
+    "The `hr-letter-settings` MongoDB collection has only one singleton doc. Consider adding a unique index on `id='singleton'` to guarantee only one document exists even under concurrent bootstrap races. Currently `_load_profile()` does insert_one without upsert semantics, so two concurrent first-reads could theoretically race and create two docs — very low probability but noted."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_hr_letters_iter54.py (created)",
+    "/app/test_reports/pytest/iter54_hr_letters.xml (generated)",
+    "/app/test_reports/iteration_54.json (created)"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 iter54 + 11/11 iter53 regression = 17/17)",
+    "frontend": "100% (legacy redirect, tab position, deep-link reload, modal open/prefill/save/persist, launchpad de-dup, toast — all verified)"
+  },
+  "test_credentials": "admin@projexino.com / Projexino@2026 (super_admin), intern@projexino.com / Intern@2026 (used for 403 check)",
+  "seed_data_creation": "Each test creates a TEST_-prefixed letter and deletes it in teardown. The company_profile singleton is PUT with TestCo values during testing, then RESET back to Projexino defaults in the module-scoped autouse cleanup fixture AND again explicitly in the frontend Playwright cleanup step. Verified final state: GET /api/hr/letters/company-profile returns company_name='Projexino Solutions Pvt Ltd' with all custom fields cleared.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Company profile singleton lives in MongoDB `hr_letter_settings` collection with {id:'singleton'}. Always reset to defaults after PUT tests. The PDF endpoint reads profile via _load_profile() on every render, so PDF changes reflect immediately after a PUT. HR Letters is now a tab (?tab=letters) inside HRModule at /app/hr — no separate route anymore. Legacy /app/hr-letters and /m/hr-letters both <Navigate> to the tab route. When Playwright-testing the Letterhead modal, all form fields have data-testid `hrls-*` (company, tagline, logo, email, phone, website, addr1, addr2, city, state, pin, country, cin, gstin, footer) and the save button is `hrls-save`. Toast text on successful save is 'Letterhead saved · will apply to all future PDFs'. Note that iter53 previously created some leftover 'UITest Iter53' letters visible in the list — harmless but could be cleaned by the main agent if desired.",
+  "rca of the issue": "N/A — this iteration is feature verification, not a bug fix. Bug#1 (hardcoded address/email in PDF header) was fixed by introducing an admin-editable Company Profile singleton in `hr_letter_settings` collection, with `_brand_html(letter, profile)` now sourcing all letterhead + @page footer strings from the persisted profile. Feature #2 (HR Letters as HR-module tab) was implemented by adding `{v:'letters',...}` to TABS in HRModule.jsx, wiring `useSearchParams` for ?tab= deep-linking, adding an `embedded` prop to HrLetters, removing the Launchpad card, and redirecting the two legacy URLs. All changes verified working end-to-end via pytest + Playwright."
+}

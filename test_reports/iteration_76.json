@@ -1,0 +1,34 @@
+{
+  "summary": "Iter76 - Full E2E verification of Careers/Job Postings feature. Backend: 8/8 pytest pass (CRUD, invalid enum rejection, close-hides-from-public, search + filters, PDF with mailto+http annotations, delete-404). Frontend admin: Job Postings tab visible in Website Config hub, editor modal renders all 16 fields, create/edit/status-toggle/delete flows all work, PdfPreviewModal renders 1 canvas for the 1-page JD. Frontend public /careers: 3D hero, navbar Careers link, React Developer card, search (positive + empty), type/mode filters, job modal with details grid + skills chips + JD sections + apply mailto link + Download JD (PDF) working (JD-react-developer.pdf downloaded, no error toast). Mobile 375px: no horizontal overflow, modal renders as sheet fitting viewport width, admin tab strip scrollable (clientW 343 / scrollW 746 / overflow-x:auto). Closed job hidden from public list confirmed via API. Cleanup: only React Developer posting remains.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/careers job modal (mobile 375px)", "issues": ["Floating 'Get Instant Estimate' widget overlaps modal footer buttons on very small viewports (visible above 'Download JD (PDF)' + close X). Not blocking - can still click Download via header button. Consider z-index or hide-on-modal-open."]},
+      {"screen": "Admin PdfPreviewModal", "issues": ["Benign console error 'pdf render failed RenderingCancelledException' from pdf.js re-render race during modal open - canvas still renders correctly; not user-visible."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter76_careers.py",
+    "/app/test_reports/pytest/iter76_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "careers.py _jd_html - the esc() lambda only escapes '&' and '<' but not '>' or quotes. If a JD title/summary contains '>' or '\"' it could break HTML rendering or attribute values (e.g. <a href=\"mailto:...\"). Recommend using html.escape() from stdlib to fully escape all reserved chars.",
+    "careers.py public_job GET /public/careers/jobs/{slug} filters on status='open' but public_jd_pdf GET /public/careers/jobs/{slug}/jd.pdf does NOT - a closed job's JD PDF is still downloadable if slug is known. If the intent is 'closed = fully hidden from public', add {'status': 'open'} to that query too. Not blocking today (nobody links closed slugs), but data-leak surface.",
+    "careers.py list_jobs and public_jobs sort by 'created_at' but no MongoDB index is declared. With 300 postings this is fine; consider adding an index when volume grows.",
+    "JobPostings.jsx card - the Download JD icon button (line 94-96) has no data-testid ('job-jd-download-{id}' is only on the outer wrapper per system spec? Actually it IS on the button as job-jd-download-* per grep). Verified present. No action.",
+    "Careers.jsx - the floating XinoLayer 'Get Instant Estimate' button z-index intercepts modal footer on mobile 375. Consider hiding it while careers-job-modal is open, or move download button to header only (already there)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter76_careers.py (new)"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% (admin CRUD + public search/filter/modal/download + mobile all pass)"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Created + deleted 'TEST QA Engineer iter76' via admin UI (full CRUD lifecycle exercised). Created + deleted 'TEST Closed Job iter76' + 'TEST delete me iter76' + 'TEST bad'/'TEST bad2' (400s) via pytest. Final state: only real 'React Developer' posting remains, matching pre-test baseline.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Careers feature is fully wired. Backend endpoints /api/careers/jobs (admin, requires admin|super_admin|manager|hr role) and /api/public/careers/jobs[/{slug}[/jd.pdf]] (public) all functional. Admin UI at /app/website-config?tab=jobs. Public page at /careers with test-ids: careers-hero, careers-search, careers-type-{full_time|part_time|freelancer|internship|contract}, careers-mode-{office|wfh|hybrid}, careers-job-{slug}, careers-empty, careers-job-modal, careers-jd-body, careers-jd-download, careers-apply-link. Admin test-ids in JobPostings.jsx: job-postings-admin, job-new-btn, job-card-{id}, job-edit-{id}, job-jd-preview-{id}, job-jd-download-{id}, job-status-{id}, job-delete-{id}, job-editor-modal, job-f-{title|dept|type|mode|location|timings|salary|exp|openings|apply|skills|summary|resp|req|benefits|status}, job-save. Real posting slug=react-developer must be preserved. PDF has clickable mailto: + https://www.projexino.com annotations verified via pypdf.",
+  "rca_of_the_issue": "No bugs found. Two minor observations: (1) benign 'RenderingCancelledException' console warning from pdf.js when opening PdfPreviewModal - the canvas renders correctly and it's a known pdf.js race when React re-renders during first paint. (2) 'Get Instant Estimate' floating widget from XinoLayer overlaps careers-job-modal footer on 375px viewport - core interactions still work but visually noisy; recommend z-index adjustment or conditional hide when modal is open."
+}

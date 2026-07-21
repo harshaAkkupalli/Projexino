@@ -1,0 +1,38 @@
+{
+  "summary": "Iter77 E2E test of Careers Mini ATS. Backend 15/15 pytest PASS: settings GET/PUT auth-required, PUT valid+blank persists, PUT invalid email 400, apply invalid-email 400, apply success returns ok+application_id+email_notified(false expected), duplicate email 400, unknown slug 404, resume lands in Documents folder='Resumes', GET /careers/applications strips resume_b64, PATCH status valid/invalid, GET /careers/applications/{id}/resume returns filename+mime+decodable b64, GET /careers/jobs includes application_count. Frontend PUBLIC /careers apply flow WORKS: modal opens on job card click, apply-form renders, no-resume shows error toast 'Attach your resume (PDF/DOC, max 5 MB)', full submission with PDF resume shows apply-success 'Application received!'. Frontend ADMIN Job Postings: ats-notify-settings visible, ats-notify-email save fires success toast, application_count badge shows correctly (3) on job card. CRITICAL BUG: clicking job-applicants-{id} button does NOTHING because ApplicantsModal is defined at line 179 of JobPostings.jsx but is NEVER rendered — state 'applicants' is set via setApplicants(j) but no {applicants && <ApplicantsModal .../>} exists in the AnimatePresence block (lines 114-119 only render editor + preview). Consequently applicants-modal, applicant-{id}, applicant-status-{id}, applicant-resume-{id} testids CANNOT be reached from the UI.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "JobPostings.jsx (portal admin)", "issue": "ApplicantsModal component defined but never rendered — clicking job-applicants-{id} button opens no modal. Need to add {applicants && <ApplicantsModal job={applicants} onClose={() => setApplicants(null)} />} inside AnimatePresence around line 118.", "selector": "[data-testid='job-applicants-<id>']", "priority": "CRITICAL"}
+    ],
+    "integration_issues": [
+      {"flow": "Admin → applicants view", "issue": "Full admin ATS review flow (status change, resume download) is unreachable due to modal not rendering. Only the badge count (3) is displayed on the job card.", "affected_selectors": ["applicants-modal", "applicant-{id}", "applicant-status-{id}", "applicant-resume-{id}"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter77_careers_ats.py",
+    "/app/test_reports/pytest/iter77_results.xml"
+  ],
+  "action_items": [
+    "CRITICAL: In /app/frontend/src/pages/portal/JobPostings.jsx around lines 114-119, mount ApplicantsModal conditionally: `{applicants && <ApplicantsModal job={applicants} onClose={() => setApplicants(null)} />}`. Without this, the entire admin applicant pipeline (view/status/download resume) is inaccessible from the UI even though the backend endpoints work perfectly."
+  ],
+  "critical_code_review_comments": [
+    "JobPostings.jsx line 20 declares `applicants` state and line 95 wires setApplicants(j) on the job-applicants-{id} button, but the AnimatePresence block (114-119) only conditionally renders editor and preview — ApplicantsModal is imported/defined but orphaned. Fix is a one-liner addition.",
+    "careers.py apply_job (line 289) uses base64.b64decode WITHOUT validate=True — so 'invalid' base64 with skip characters may silently decode to garbage and still be persisted. Recommend `b64decode(payload.resume_b64, validate=True)` or size/format sanity check.",
+    "careers.py apply_job stores resume_b64 both on job_applications AND on the mirrored documents collection. Duplicating a 5MB blob in two collections is wasteful; consider storing once and referencing by application_id.",
+    "careers.py apply_job — the try/except around the Gmail send block is a bare `except Exception: pass` which will silently swallow real errors (e.g., token refresh failure vs network). Log the exception for observability.",
+    "careers.py get_careers_settings returns the raw doc which may leak _id since projection {'_id': 0} is applied — actually projection is correct. But default upsert branch returns dict without updated_at/updated_by keys; inconsistent shape between never-saved vs saved states.",
+    "JobPostings.jsx NotifySettings does not validate email format client-side before firing PUT — relies on server 400. Not blocking but adds a round-trip for typos."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter77_careers_ats.py (new — 15 tests, all pass)"
+  ],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "70% — public apply flow works end-to-end, admin notify-settings works, but admin applicants modal completely broken (unrendered)"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 (per /app/memory/test_credentials.md)",
+  "seed_data_creation": "Backend pytest created 1 real application (test_iter77_<hex>@example.com) on react-developer via public apply, then PATCHed status→shortlisted. Frontend UI test created 1 more application (uitest_iter77_<ts>@example.com) via /careers page. Both are on the real 'react-developer' job (slug preserved). Job now has application_count=3+ visible in admin. No jobs created or deleted.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Careers Mini ATS backend is fully wired: POST /api/public/careers/jobs/{slug}/apply (public, dedup by email+job, drops resume into Documents folder='Resumes', tries Gmail notify best-effort), GET /api/careers/applications?job_id=... (admin, strips resume_b64), PATCH /api/careers/applications/{id} (status enum: new/shortlisted/interview/hired/rejected), GET /api/careers/applications/{id}/resume (returns filename+mime+b64), GET/PUT /api/careers/settings (admin, notify_email). GET /api/careers/jobs includes application_count. Only remaining slug is 'react-developer'. TO RETEST: after main agent adds `{applicants && <ApplicantsModal job={applicants} onClose={() => setApplicants(null)} />}` inside AnimatePresence block of JobPostings.jsx, verify: applicants-modal opens, applicant-{id} rows list existing test applications, applicant-status-{id} dropdown changes status (persist via PATCH), applicant-resume-{id} triggers download via GET .../resume endpoint. The endpoint /careers/applications/{id}/resume is already tested and working.",
+  "rca_of_the_issue": "RCA: In /app/frontend/src/pages/portal/JobPostings.jsx: (1) line 20 defines useState for `applicants`, (2) line 95 wires setApplicants(j) on button click, (3) line 179 defines ApplicantsModal component with full functionality including the correct data-testids (applicants-modal, applicant-{id}, applicant-status-{id}, applicant-resume-{id}), BUT (4) the AnimatePresence block at lines 114-119 only conditionally renders `editor` (JobEditor) and `preview` (PdfPreviewModal) — the applicants state variable is never referenced in JSX. This is a copy-paste-forget bug. REPRO: login admin → /app/website-config?tab=jobs → click applicant badge button on any job card → nothing happens (no modal opens, no console error). MITIGATION: Add one line inside AnimatePresence: `{applicants && <ApplicantsModal job={applicants} onClose={() => setApplicants(null)} />}`. All backend endpoints for this flow are verified working via pytest."
+}

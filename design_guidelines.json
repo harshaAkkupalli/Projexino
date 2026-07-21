@@ -1,0 +1,89 @@
+{
+  "theme_archetype": {
+    "primary": "Archetype 4 (Swiss & High-Contrast) + Archetype 5 (Jewel & Luxury)",
+    "description": "Premium Dark Mode SaaS with Stripe-like elegance and Linear-inspired precision for the marketing hub, transitioning to a clean, highly functional light mode for internal SaaS portals.",
+    "modes": ["dark (marketing)", "light (portals)"]
+  },
+  "typography": {
+    "fonts": {
+      "heading": "Outfit",
+      "body": "Manrope",
+      "mono": "JetBrains Mono"
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl font-light tracking-tighter",
+      "h2": "text-3xl sm:text-4xl lg:text-5xl font-medium tracking-tight",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-base leading-relaxed text-slate-300",
+      "label": "text-xs font-bold uppercase tracking-[0.2em]"
+    }
+  },
+  "colors": {
+    "dark_mode": {
+      "background": "#0A0E17",
+      "surface_1": "#0F2042",
+      "surface_2": "#1E3A8A",
+      "accent": "#F97316",
+      "text_primary": "#FFFFFF",
+      "text_secondary": "#94A3B8",
+      "border": "rgba(255, 255, 255, 0.1)"
+    },
+    "light_mode": {
+      "background": "#F8FAFC",
+      "surface_1": "#FFFFFF",
+      "surface_2": "#F1F5F9",
+      "accent": "#F97316",
+      "text_primary": "#0F172A",
+      "text_secondary": "#64748B",
+      "border": "#E2E8F0"
+    }
+  },
+  "layout_spacing": {
+    "philosophy": "Generous Spacing (Tailwind Scale)",
+    "marketing_grid": "The 'Tetris' Grid - Asymmetry, visual tension, gap-8 to gap-12. Deeply layered with glassmorphic cards.",
+    "dashboard_grid": "The 'Control Room' Grid - Dense, scanable, gap-4 to gap-6, 1px subtle borders. Perfect for Kanban and Task Management views.",
+    "general": "Containers with borders must have internal padding (p-6 or p-8) to prevent text collision."
+  },
+  "components": {
+    "navbar": "Glassmorphism: backdrop-blur-xl bg-[#0A0E17]/70 border-b border-white/10. Sticky top-0 z-50.",
+    "buttons": {
+      "primary": "bg-[#F97316] text-white hover:bg-[#EA580C] shadow-[0_0_20px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.6)] transition-all duration-300 rounded-full px-6 py-3 font-medium",
+      "secondary": "bg-white/5 text-white border border-white/10 hover:bg-white/10 rounded-full px-6 py-3 transition-colors"
+    },
+    "inputs": "bg-[#0A0E17]/50 border border-white/10 focus:border-[#F97316] focus:ring-1 focus:ring-[#F97316] rounded-md px-4 py-2 text-white placeholder:text-slate-500",
+    "cards_marketing": "Crystal Glass variant: bg-white/5 backdrop-blur-xl border border-white/10 hover:border-[#1E3A8A] transition-colors rounded-2xl p-8 shadow-2xl",
+    "cards_portal": "Solid flat background (bg-white), 1px subtle border (border-slate-200), shadow-sm, rounded-xl p-6",
+    "kanban_board": "Light mode portal columns: bg-slate-50/50 rounded-xl p-4 border border-slate-200. Task Cards: bg-white shadow-sm border border-slate-200 rounded-lg p-4 cursor-grab hover:shadow-md hover:border-[#1E3A8A] transition-all",
+    "status_badges": {
+      "new": "bg-blue-50 text-[#1E3A8A] border border-blue-200",
+      "contacted": "bg-orange-50 text-[#F97316] border border-orange-200",
+      "qualified": "bg-green-50 text-emerald-700 border border-green-200",
+      "lost": "bg-red-50 text-rose-700 border border-red-200"
+    }
+  },
+  "motion_and_3d": {
+    "hero_3d": "React Three Fiber: Floating P/X geometric shapes reflecting ambient environment light. Mouse responsive rotation and tilt using Framer Motion 3D for parallax depth.",
+    "loader": "Creative SVG morphing loader. The stylized 'P' morphs into an 'X', traced by an orange glowing stroke (framer-motion pathLength animation). Used on every page navigation.",
+    "scroll_animations": "Staggered fade-up (opacity 0 to 1, y: 30 to 0) for ecosystem cards and services grid using Framer Motion whileInView.",
+    "hover_effects": "Buttons emit a vibrant tech orange glow. Ecosystem cards exhibit a subtle lift (-translate-y-1) and 'Tracing Beam' border effect on hover.",
+    "app_extensions_portal": "Features 3D Android phone mockups displaying Lead Tracking Kanban and Task Stream, floating with gentle sine wave animations (y-axis)."
+  },
+  "media": {
+    "logo_url": "https://customer-assets.emergentagent.com/job_8ecf9e27-b5e8-4618-b759-fd506dd16fee/artifacts/jxdkrgkh_cropped-projexino-scaled-1-768x358%20%281%29.png",
+    "hero_background_url": "https://static.prod-images.emergentagent.com/jobs/8ecf9e27-b5e8-4618-b759-fd506dd16fee/images/39052a0697ae45832279e2bb60ccbe9e7218bed0a4418472d6c2659aeb819242.png",
+    "abstract_mesh_url": "https://static.prod-images.emergentagent.com/jobs/8ecf9e27-b5e8-4618-b759-fd506dd16fee/images/82440e8589fd10e476472c96ae3546a480a6a26755dfea4ad5dcfd25bcb06238.png"
+  },
+  "testing": {
+    "requirements": "All interactive and key informational elements MUST include a data-testid attribute for robust automated testing (e.g., data-testid='login-button')."
+  },
+  "instructions_to_main_agent": [
+    "Ensure global background in marketing site is Dark Navy (#0A0E17).",
+    "Use Outfit for Headings and Manrope for Body.",
+    "Portals (Kanban, Task Management) should contrast the marketing site by using the defined light_mode colors to improve data scanability and function.",
+    "Implement React Three Fiber strictly for the Hero P/X logo and App portal 3D phone mockups.",
+    "Never use raw transparent backgrounds over images, use the specified glassmorphism backdrop-blur.",
+    "All CTA buttons should map to the Vibrant Tech Orange accent (#F97316) with defined glowing box-shadows.",
+    "Include the creative SVG logo morph loader on initial load and route changes."
+  ]
+}

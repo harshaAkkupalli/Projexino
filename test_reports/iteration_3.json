@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 3 — Projexino corporate ecosystem feature additions (Projects, Documents, Chat, AI, Interns, Notifications, Mobile aliases, branding). BACKEND: 60/60 pytest pass (30 regression in backend_test.py + 30 new extension tests in test_extensions.py covering full CRUD + business rules: project status notification, document base64 round-trip + comments, chat channel CRUD + text/attachment messages, intern badge auto-award on on-time completion, certificate PDF binary + status flip, AI Claude Sonnet 4.5 round-trip via emergentintegrations, notifications list/read/read-all). FRONTEND: Portal sidebar correctly shows 9 nav items (Dashboard, Projects, Tasks, Leads, Team, Interns, Documents, Chat, AI Assist). Posthog removed from index.html. New Project create works (project card appears). New Chat Channel create works (channel appears in sidebar, message sending succeeds). Documents page loads (upload modal flow flaky in headless but backend confirms full base64 upload+download+comments work). Interns page loads, Add Intern modal opens. AI Assist creates session and Claude Sonnet 4.5 returns a real long-form assistant response (verified large markdown reply rendered in chat thread). Notification bell shows unread badge ('2') in header. /m/dashboard alias renders the same portal layout with sidebar nav. ONE GAP: PortalLayout.jsx does NOT render the 'Developed by Projexino Solutions Pvt Ltd · © 2026 Projexino. All rights reserved.' footer line — public Footer.jsx has it but the portal main element ends after <Outlet/> with no footer. Public marketing footer is correct.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Portal /app/* layout", "issues": ["Missing 'Developed by Projexino Solutions Pvt Ltd · © 2026 Projexino. All rights reserved.' footer line inside PortalLayout.jsx. Review spec explicitly says the line must appear on both public AND portal. Public Footer.jsx renders it correctly; PortalLayout currently has no <footer> below <main><Outlet/></main>."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_extensions.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/ext_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Add the branding footer line inside /app/frontend/src/pages/portal/PortalLayout.jsx (e.g., a <footer> below <main>) so logged-in portal pages also display 'Developed by Projexino Solutions Pvt Ltd · © 2026 Projexino. All rights reserved.' This is the only spec deviation found."
+  ],
+  "critical_code_review_comments": [
+    "extensions.py cleanly registers all new endpoints via APIRouter and pydantic models at module scope; all queries scoped by owner_id; _id excluded from projections. Good.",
+    "Documents list/upload correctly strip content_base64 from responses; download endpoint returns base64 separately. Good size budget (10MB).",
+    "Intern badge logic correctly compares deadline (10-char dates converted to end-of-day UTC) before awarding 'On-Time Achiever' and bumping tasks_on_time. Notifications created in both on-time and late branches.",
+    "Certificate generation flips intern.status -> completed and creates an 'intern_completed' notification — verified PDF binary starts with %PDF and Content-Type is application/pdf.",
+    "AI endpoint uses emergentintegrations.llm.chat with claude-sonnet-4-5-20250929 mapped to mode; both user+assistant messages persisted via db.ai_messages; GET /ai/sessions/{id}/messages returns sorted by created_at.",
+    "Chat send_message correctly rejects empty payload (text and attachment both empty) with 400; attachment_base64 stored but not returned in message body; separate /chat/attachment/{msg_id} endpoint serves it.",
+    "PortalLayout.jsx renders 9 nav items, notification bell with unread badge, and notif dropdown. Mobile detection via /m prefix works (verified /m/dashboard renders portal). However, layout has no footer — see action_items.",
+    "extensions.py is 929 lines; consider splitting into modules (projects.py, documents.py, chat.py, interns.py, ai.py) for maintainability (>700 line threshold)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_extensions.py (new — 30 tests for projects/documents/chat/notifications/interns/ai)"
+  ],
+  "success_rate": {"backend": "100% (60/60 pytest: 30 regression + 30 new extensions)", "frontend": "~95% — all critical portal flows render and load; new Project create + new Channel + Chat message send + AI Claude reply verified end-to-end via real backend"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 (verified) · EMERGENT_LLM_KEY working (Claude Sonnet 4.5 returned real response)",
+  "seed_data_creation": "All test data prefixed TEST_ / TESTUI_ and self-cleaned via teardown delete in each test class.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression at /app/backend/tests/backend_test.py (30 tests) + extensions at /app/backend/tests/test_extensions.py (30 tests). Run: pytest backend/tests/ -v. Frontend portal testids cover all major modules — Projects (add-project-btn, project-modal, project-name, project-save-btn, project-card-{id}, project-status-{id}, project-delete-{id}), Documents (upload-doc-btn, doc-upload-modal, doc-file, doc-save-btn, doc-card-{id}), Chat (new-channel-btn, channel-modal, channel-name, channel-save-btn, channel-{id}, chat-input, chat-send-btn), Interns (add-intern-btn, intern-modal, intern-save-btn, intern-tasks-{id}, intern-cert-{id}), AI (ai-new-session, ai-input, ai-send-btn). Use the API login pattern (fetch /api/auth/login then set localStorage.pj_token) — direct button click on Sign in is sometimes flaky in headless Playwright. Mobile /m/* alias confirmed routing to same PortalLayout.",
+  "rca of the issue": "Only deviation: PortalLayout.jsx has no footer element. Fix is a 4-5 line JSX addition below <main><Outlet/></main>: <footer className='border-t border-slate-200 px-4 md:px-8 py-3 text-xs text-slate-500'>Developed by Projexino Solutions Pvt Ltd · © 2026 Projexino. All rights reserved.</footer>"
+}

@@ -1,0 +1,98 @@
+{
+  "summary": "Iteration 14 — Backend-only verification of 3 new feature sets: (1) WebRTC calling signaling /api/calls/*, (2) Global search /api/search, (3) Admin Project Finance & Invoicing /api/finance/*. Created /app/backend/tests/test_iter14_calls_search_finance.py with 49 tests across 8 classes (TestCalling, TestSearch, TestFinanceCRUD, TestFinancePayments, TestFinanceEmails, TestFinanceFolders, TestFinanceInvoices, TestFinanceCleanup). 49/49 new tests PASS. Full regression: 251/251 pytest tests pass (202 prior + 49 new). Gmail OAuth is intentionally NOT connected — POST /api/finance/invoices/{id}/send and POST /api/finance/projects/{id}/reminder both return clean 400 with 'Gmail not connected' message (no 5xx). All finance responses scrub Mongo _id, exclude heavy content_base64 in list/get, and exclude pdf_base64 in invoice list/get while serving the PDF binary via /pdf endpoint with %PDF magic bytes & application/pdf content-type. Auto-incremented invoice_no format verified as PRX-YYYY-NNNNN. Payment-by-percent (locked_budget * percent/100) verified. First client_email auto-promoted to primary; setting a new primary unsets others; deleting the primary re-promotes a remaining email. Folder/file upload, 10MB limit (400), and base64 download verified. Stub project auto-created in db.projects when finance is added without project_id (visible in /api/projects). Duplicate finance for same project_id correctly rejected with 400. Calls: cannot-self (400), missing-callee (404), incoming polling, callee answer flips ringing→active with SDP stored, already-answered (400), non-callee answer (403), ICE candidates strictly return OTHER party's candidates only, stranger access (403), end/decline auth. Search: returns grouped dict with no _id leak; empty q returns total:0; case-insensitive; finance + invoices groups appear when matches exist.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/finance/projects/{id}/payments", "issue": "When amount=0 and percent provided but locked_budget is 0/missing, response is 400 — correct, but the message ('Provide a positive amount or a percent of a locked budget') doesn't distinguish missing-locked-budget vs missing-percent. Cosmetic."},
+      {"endpoint": "POST /api/finance/invoices/{id}/send + .../reminder", "issue": "If Gmail were connected and a downstream Gmail/HTTP exception happened, the handler wraps it as HTTPException(502, 'Send failed: <raw exception>')—may leak provider error details. Consider sanitising. Not exercised in this run (Gmail off path returns 400 cleanly, as required)."},
+      {"endpoint": "GET /api/finance/invoices/{id}/pdf", "issue": "When pdf_base64 is missing the handler rebuilds the PDF inline — fine, but it bypasses the urllib timeout check failure path silently (logo fetch is wrapped). Acceptable."},
+      {"endpoint": "Tests test_phase3.py / test_issues_and_cert.py", "issue": "Both module-load with BASE = os.environ['REACT_APP_BACKEND_URL'].rstrip('/'); they crash collection in environments where the variable isn't exported. Workaround: set env before pytest. Recommend converting to the safer pattern used in other test files that fall back to reading /app/frontend/.env."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "verification_results": {
+    "calling": {
+      "POST /api/calls admin→manager creates ringing call": "PASS",
+      "Cannot call self (400)": "PASS",
+      "Missing callee (404)": "PASS",
+      "GET /api/calls/incoming callee sees ringing call": "PASS",
+      "GET /api/calls/incoming non-recipient doesn't see it": "PASS",
+      "GET /api/calls/{id} stranger 403, participant 200, no _id leak": "PASS",
+      "POST /answer non-callee 403; callee → status=active + SDP stored; already-answered 400": "PASS",
+      "POST /ice both sides; GET /ice returns OTHER party's candidates only; stranger 403": "PASS",
+      "POST /end by caller 200; stranger 403; POST /decline by callee 200": "PASS"
+    },
+    "search": {
+      "GET /api/search?q=projexino returns grouped dict, no _id leak": "PASS",
+      "GET /api/search?q= empty → total:0": "PASS",
+      "Single-char query OK; case-insensitive": "PASS",
+      "Finance + invoice groups appear when matches exist": "PASS"
+    },
+    "finance_crud": {
+      "POST /api/finance/projects admin auto-creates stub projects row when project_id omitted": "PASS",
+      "Stub appears in GET /api/projects": "PASS",
+      "Duplicate finance for same project_id → 400": "PASS",
+      "Non-admin (manager/hr/member/intern) → 403": "PASS",
+      "GET /api/finance/projects aggregates (total_paid/percent_paid/remaining/payment_status), no content_base64": "PASS",
+      "GET /api/finance/summary admin/manager/hr 200; member/intern 403; rollups correct": "PASS",
+      "PATCH /api/finance/projects/{id} renames synced to projects.name; currency upper-cased; non-admin 403": "PASS",
+      "DELETE admin 200; non-admin (hr) 403": "PASS"
+    },
+    "finance_payments": {
+      "amount=0 & no percent → 400": "PASS",
+      "amount>0 → status=partial, total_paid updated": "PASS",
+      "amount=0, percent=25 of locked_budget=80000 → 20000 added": "PASS",
+      "DELETE payment removes & re-aggregates": "PASS",
+      "POST/DELETE payment non-admin → 403": "PASS"
+    },
+    "finance_emails": {
+      "Add email primary=true unsets others; first email auto-primary when none flagged": "PASS",
+      "DELETE primary email preserves a primary among remaining": "PASS"
+    },
+    "finance_folders_files": {
+      "POST folder + POST file (small base64) → 200; file_entry excludes content_base64": "PASS",
+      "GET .../download returns content_base64 = original bytes": "PASS",
+      "size > 10MB → 400": "PASS",
+      "DELETE file & folder → 200": "PASS"
+    },
+    "finance_invoices": {
+      "POST .../invoices → PRX-YYYY-NNNNN auto invoice_no, pdf_base64 stored, response excludes pdf_base64": "PASS",
+      "GET /api/finance/invoices?project_id= lists; pdf_base64 stripped": "PASS",
+      "GET /api/finance/invoices/{id} excludes pdf_base64": "PASS",
+      "GET /api/finance/invoices/{id}/pdf returns application/pdf bytes starting %PDF": "PASS",
+      "POST .../send admin (Gmail OFF) → 400 'Gmail not connected'": "PASS",
+      "POST .../send manager → 403": "PASS",
+      "POST .../reminder admin (Gmail OFF, remaining>0) → 400 'Gmail not connected'": "PASS",
+      "POST .../reminder manager → 403": "PASS"
+    },
+    "regression": "251/251 tests pass across full backend/tests suite (202 prior + 49 new)."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter14_calls_search_finance.py",
+    "/app/test_reports/pytest/iter14_results.xml",
+    "/app/test_reports/pytest/iter14_full.xml"
+  ],
+  "action_items": [
+    "Consider converting test_phase3.py and test_issues_and_cert.py to the resilient env-loading pattern used by test_notif_email.py / test_iter14_*.py (fallback to /app/frontend/.env) so they don't fail at pytest collection when REACT_APP_BACKEND_URL isn't exported in the shell.",
+    "Optional: sanitize the 502 'Send failed: <raw>' string from finance.send_invoice / send_reminder to avoid leaking provider exception details when Gmail is connected.",
+    "Optional: clarify 400 message when payment percent is provided but locked_budget is missing."
+  ],
+  "critical_code_review_comments": [
+    "finance.py is 1003 lines — well over the 700-line guideline. Consider splitting into finance_routes.py + finance_pdf.py + finance_invoices.py for maintainability.",
+    "search_module.py runs ~10 sequential Mongo finds per request; for larger workspaces consider asyncio.gather to parallelize the regex finds.",
+    "_build_invoice_pdf does a synchronous urllib.request.urlopen to fetch the Projexino logo (timeout=4) inside an async endpoint — blocks the event loop. Move into a thread executor (asyncio.to_thread / fastapi BackgroundTask) or cache the logo bytes at startup.",
+    "calling.py: /calls/incoming uses ISO-string cutoff comparison ($gte) — works because ISO strings sort chronologically, but storing created_at as a real datetime would be more robust and indexable.",
+    "calling.py: ICE candidates have no retention cleanup — db.call_ice will grow unboundedly. Add a TTL index on call_ice.at or purge on call end.",
+    "finance.py: POST /finance/projects/{id}/folders/{fid}/files validates 'size' from client but doesn't verify the decoded base64 length matches/within MAX_FILE_BYTES — a client could lie about size to bypass the limit. Decode and len-check the bytes server-side.",
+    "All finance responses correctly scrub _id via _scrub helper or projection — verified no leaks. Good.",
+    "send_invoice and send_reminder embed user-provided extra_message/message via f-string into HTML email without sanitization — XSS risk in the rendered email. Use html.escape() before embedding."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter14_calls_search_finance.py"],
+  "success_rate": {"backend": "100% (251/251)", "frontend": "n/a (skipped per request)"},
+  "test_credentials": "admin/manager/hr/member/intern @projexino.com — sourced from /app/memory/test_credentials.md",
+  "seed_data_creation": "Created and then deleted a TEST_FIN_<hex> finance project (with its auto-stub projects row left in place — admin can manually clean it from /api/projects if desired). One invoice was generated under it and remains in db.invoices after finance deletion (intentional — invoices outlive the finance doc).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 3 new feature areas (calling/search/finance) are green. The TEST_FIN_* finance project is deleted at end of run; orphaned stub project + 1 issued invoice may remain — safe to ignore. If main agent fixes any of the action items (esp. PDF logo blocking I/O or base64 size guard), retest just the affected class with `pytest backend/tests/test_iter14_calls_search_finance.py::TestFinanceFolders -v`. The two legacy test files (test_phase3, test_issues_and_cert) need REACT_APP_BACKEND_URL exported in shell or they fail at collection; not a backend regression.",
+  "rca_of_the_issue": "n/a — no bugs found in new code paths."
+}

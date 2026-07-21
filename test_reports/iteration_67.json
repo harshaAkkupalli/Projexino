@@ -1,0 +1,40 @@
+{
+  "summary": "Backend-only verification of the two just-fixed bugs. BUG 2 (WhatsApp): invoice + receipt /whatsapp endpoints emit '📥 *Invoice-<date>-<service>*' / '📥 *Receipt-<date>-<project>*' labels, absolute /api/d/i/ + /pay/invoice/ + /api/d/r/ URLs, no relative-only paths — verified end-to-end (including anonymous GET of the /api/d/i/ short URL returning a real %PDF). _public_base helper unit-tested in 5 modes: env set → returns env; env unset + Origin header → returns origin; env unset + no Origin → returns base_url; malformed env → falls back to Origin; nothing at all → empty. BUG 1 (Gmail logo): LOGO_FILE_CANDIDATES includes /app/backend/assets/projexino-logo.png (exists, 25KB); _logo_cid_swap swaps {{logo_url}} + absolute cdn projexino-logo.png URLs to cid:pjxlogo and returns a MIMEImage(png) with Content-ID <pjxlogo> and inline disposition; reproducing _do_send's MIME assembly yields multipart/related with an alternative inner + an inline pjxlogo image part; all 12 db.email_templates reference {logo_url} and none contain 'linear-gradient' or 'customer-assets'. Regression: /api/email/send validates through to Gmail step and fails at the OAuth refresh with google.auth.exceptions.RefreshError('deleted_client') — expected per main agent (Gmail OAuth client deleted). Test file: /app/backend/tests/test_iter67_whatsapp_and_email_logo.py — 16/16 passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/email/send",
+        "issue": "google.auth.exceptions.RefreshError from _refresh_if_needed() surfaces as a bare 500 'Internal Server Error' because the call at email_module.py:851 is NOT wrapped in try/except (unlike the actual send at line 875-879 which raises 502). Not a regression of this iter — just uncovered while writing the regression test. Should map RefreshError → HTTPException(400, 'Gmail OAuth invalid/deleted — reconnect from /app/settings') so the UI can surface a proper message instead of a generic 500."
+      }
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter67_whatsapp_and_email_logo.py",
+    "/app/test_reports/pytest/iter67_results.xml"
+  ],
+  "action_items": [
+    "(minor) In email_module._do_send wrap `await _refresh_if_needed(db, token)` in try/except google.auth.exceptions.RefreshError → HTTPException(400, 'Gmail account needs re-connect (OAuth token invalid/deleted)') so /api/email/send returns a clean 400 instead of a raw 500 when the OAuth client is deleted / refresh fails.",
+    "Gmail OAuth client is deleted — restore/replace it to unblock actual sending. This is the known blocker main agent flagged; no fix needed from testing side."
+  ],
+  "critical_code_review_comments": [
+    "finance._public_base is clean and self-host-safe. Correctly prefers PUBLIC_FRONTEND_URL, then REACT_APP_BACKEND_URL, then Origin header, then request.base_url, with `.startswith('http')` guards so a malformed env value doesn't leak through. Good defensive design.",
+    "email_module._logo_cid_swap regex handles four cases: {{logo_url}} placeholder, absolute cdn URL with any query string, quoted /projexino-logo.png relative path, and pre-existing cid:pjxlogo (idempotent). Good coverage. Inline MIMEImage carries Content-ID '<pjxlogo>' correctly for RFC 2392 cid: references.",
+    "email_module._do_send builds MIMEMultipart('related') wrapping a MIMEMultipart('alternative') + inline image part — correct structure for Gmail to render the inline logo. Verified by rebuilding the exact structure in a unit test and inspecting msg.walk().",
+    "MINOR: email_module.py line 851 `token = await _refresh_if_needed(db, token)` is not wrapped — Google RefreshError → uncaught → 500. Should mirror the pattern at line 875-879 (try/except → HTTPException 400/502).",
+    "email_module.py is 946 lines — approaching the recommended 700-line split threshold. Consider extracting send helpers (_do_send, _refresh_if_needed, _resolve_send_token, _logo_cid_swap, brand shell builders) into email/send.py.",
+    "finance.py is 2489 lines — well past the 700-line threshold. Should be split into finance/invoices.py, finance/receipts.py, finance/pdf.py, finance/whatsapp.py, finance/public_docs.py. Non-blocking but strongly recommended.",
+    "invoice_whatsapp uses `_issued.strftime('%d %b %Y')` which is locale-dependent (fine here since server locale is C). The label '📥 *Invoice-{issued_label}-{service}*' — if service name contains asterisks/underscores, WhatsApp markdown will misrender. Consider sanitising service."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter67_whatsapp_and_email_logo.py (new — 16 tests covering both bugs + regression)"
+  ],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "not tested (per request)"},
+  "test_credentials": "Super Admin admin@projexino.com / Projexino@2026 — worked.",
+  "seed_data_creation": "No new seed. Test class TestReceiptWhatsappAbsolute conditionally creates a standalone receipt via POST /api/finance/receipts only if the collection is empty; teardown_class deletes it via motor. Verified 0 leftover TEST_iter67 receipts after run. In this environment, receipts already existed so nothing was created.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Reusable pytest at /app/backend/tests/test_iter67_whatsapp_and_email_logo.py covers: (a) WhatsApp label + absolute-URL guarantees for invoice AND receipt sharing, (b) anonymous /api/d/i/ short-link → PDF, (c) finance._public_base helper across 5 env/request combos using monkeypatch + module reload, (d) email_module._logo_cid_swap correctness + MIMEMultipart('related') assembly matching _do_send, (e) all 12 db.email_templates use {logo_url}. If retesting, note that _public_base tests reload the finance module — if additional tests get added that depend on finance.py module-level state, run them BEFORE TestPublicBaseHelper or in a separate file (TestPublicBaseHelper.teardown_class reloads once more to restore real env, so it's mostly safe). Known non-blocker: /api/email/send returns 500 (not 400/502) when the deleted Gmail OAuth client is used — RefreshError isn't caught. Test accepts 500 as OK for now and logs it via the code-review comments.",
+  "rca_of_the_issue": "Both bugs verified fixed: (1) WhatsApp — the new _public_base(request) helper produces an absolute origin from env or from the live request, and both invoice_whatsapp / receipt_whatsapp inline it into the download + pay URLs plus a new '📥 *Invoice-<date>-<project>*' / '📥 *Receipt-<date>-<project>*' label line as specified. Regex scan of wa_text confirms every /api/d/ and /pay/ occurrence is preceded by an http origin. (2) Email logo — LOGO_FILE_CANDIDATES prefers the newly-bundled /app/backend/assets/projexino-logo.png (independent of frontend hosting layout); _logo_cid_swap replaces {{logo_url}} with cid:pjxlogo AND returns a MIMEImage(png) with Content-ID <pjxlogo> which _do_send attaches to a MIMEMultipart('related') containing an alternative HTML part — this is exactly the RFC-compliant structure Gmail needs to render the inline logo in recipient inboxes. All 12 templates already reference {logo_url} and are free of the old customer-assets/linear-gradient artefacts."
+}

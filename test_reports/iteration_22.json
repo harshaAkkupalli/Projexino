@@ -1,0 +1,57 @@
+{
+  "summary": "Verified Xino AI estimator + Company Profile PDF + Lead auto-creation + R3F /login fix + rename. Backend pytest: 9/9 PASS in 15s (PDF endpoint returns %PDF, info endpoint, 4xx for invalid payloads, full valid estimate roundtrip with Claude Sonnet 4.5, lead auto-created with source='xino-ai-estimator', admin /estimates listing & auth gating). Frontend (live preview): floating button visible, manual popup opens, intro stage has both cards, form fills + submits, AI result stage renders with USD budget ($68k–$155k for SaaS web_mobile prompt), phase breakdown, modules. /login no longer shows the 'Cannot set x-line-number' R3F overlay (R3F patch + drei 10.7 upgrade verified). Source-code grep confirms all 'Projexino AI' references in AIAssist.jsx / PortalLayout.jsx / Launchpad.jsx / AppShell.jsx are now 'Xino AI'.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/xino/estimate",
+        "issue": "Email validator is custom (not EmailStr) and allows any string with '@' + a dot after — intentional per agent context to accept .test/.local TLDs. Confirms no regression for arbitrary TLDs. Mentioned only for context."
+      },
+      {
+        "endpoint": "POST /api/xino/company-profile/upload",
+        "issue": "Unsecured stub endpoint exists in the router that immediately raises 501 ('Use /api/xino/company-profile/upload-secured'). It is reachable without auth (since it has no Depends). Consider removing the placeholder route — currently it's dead code that just confuses API surface."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "First-visit auto-open of Xino popup (5s after landing)",
+        "issue": "After clearing localStorage and reloading the landing page, the Xino auto-open popup (data-testid=xino-popup) did NOT appear within 10s — the floating button was present but the auto-popup never opened. The 'Welcome to Projexino' onboarding tour modal opened instead and may be covering or competing with the Xino auto-open. setOpen(true) is presumably called but the popup is either not rendered or hidden behind the onboarding modal. Manual click of the floating button DOES open the popup correctly (verified). Suggest gating the 5s auto-open on `!onboardingActive` or raising z-index above the onboarding overlay.",
+        "affected_selectors": ["[data-testid=\"xino-popup\"]", "[data-testid=\"xino-floating-btn\"]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_xino_ai.py",
+    "/app/test_reports/pytest/xino_ai.xml"
+  ],
+  "action_items": [
+    "OPTIONAL UX fix: Xino auto-open popup competes with the 'Welcome to Projexino' onboarding tour. After clearing localStorage and reloading the landing page, the auto-popup never visibly opens because the onboarding modal grabs focus/overlay. Either (a) defer Xino auto-open until onboarding is dismissed, or (b) increase z-index on xino-popup above onboarding (currently z-[60]).",
+    "OPTIONAL CLEANUP: Remove the placeholder /api/xino/company-profile/upload endpoint which only raises 501 — keep the /upload-secured one only.",
+    "OPTIONAL: parenthesize the provider precedence expression in /api/ai/config (cosmetic, already flagged in iteration_21)."
+  ],
+  "critical_code_review_comments": [
+    "xino_ai.py uses custom email validator (not EmailStr) — intentional and documented; ok.",
+    "xino_ai.py /estimate persists estimates but never paginates /estimates beyond 500 hardcoded limit — fine for current scale but should switch to skip/limit query params before production.",
+    "Lead auto-creation in xino_ai.py wraps everything in a single try/except Exception: pass — so any failure to create the lead silently disappears. At least log the exception (logging.warning(...)) so admins know if leads are being lost. Currently we have no audit trail when lead creation fails.",
+    "XinoEstimator.jsx auto-open uses firedRef + setTimeout(5000). It does not check if any other modal is already open (onboarding). Verified above as actual UX issue on first-visit.",
+    "_require_super_admin() in xino_ai.py allows BOTH 'super_admin' and 'admin' roles — name is misleading; consider renaming to _require_admin_or_super (cosmetic)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_xino_ai.py (new — 9 tests, all pass)"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 in test_xino_ai.py)",
+    "frontend": "~92% — floating button, manual popup, form submit, AI result, /login R3F-clean, rename all PASS; only auto-open-on-first-visit was not observed."
+  },
+  "test_credentials": "admin@projexino.com / Projexino@2026 (loaded from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Test created 1 estimate with email TEST_xino_<random>@example.com which auto-created 1 lead with source='xino-ai-estimator', plus 1 lead from the UI flow with email pw_xino_ui@example.com. These are persisted in db.xino_estimates and db.leads — flagged for E1 to optionally clean up post-verification (collection: xino_estimates, leads where source='xino-ai-estimator').",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: `MONGO_URL=mongodb://localhost:27017 DB_NAME=projexino_db pytest /app/backend/tests/test_xino_ai.py -v` (~15s, hits live Claude Sonnet 4.5). The REACT_APP_BACKEND_URL is https://projexino-hub.preview.emergentagent.com (NOT app-build-2). Frontend testing via that exact host. The auto-open Xino popup is competing with the onboarding tour on first visit — to reproduce: open DevTools → Application → Local Storage → clear all keys → reload — the onboarding tour appears but the Xino popup does not (UX issue, NOT a bug in xino code itself). Manual click of the floating button works. All backend Phase A–H regression tests (102/102) are also intact and should be re-run if any core change is made.",
+  "rca_of_the_issue": "R3F 'Cannot set x-line-number' was caused by @emergentbase/visual-edits babel plugin emitting x-file-name/x-line-number/x-column JSX attributes onto R3F intrinsic elements (mesh, ambientLight, …). Mitigation: patch-package patch on @react-three/fiber's applyProps to silently ignore any x-* prefixed prop, plus drei upgrade 9.114 → 10.7 for React-19 compat. Verified on live preview /login that no runtime-error overlay nor 'x-line-number' text appears after navigation to the role carousel + clicking Continue."
+}

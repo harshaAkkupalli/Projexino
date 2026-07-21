@@ -1,0 +1,47 @@
+{
+  "summary": "Iter 49 — Verified website-crawler lead enrichment end-to-end. Backend: 10/10 pytest passed using an in-process loopback HTTP server (127.0.0.1:random) that serves canned HTML to the real backend httpx fetcher — exercises the actual _fetch / _extract_emails / _extract_phones / _enrich_lead_doc code path with deterministic content. Frontend: All 4 UI requirements verified visually + programmatically on /app/outreach Leads tab — new 'Phone' column sits between Email and Company; the bulk violet 'Enrich Maps leads' button (data-testid=leads-enrich-all) is present next to 'Discover from Google Maps'; synthetic noemail+...@google-maps.lead rows render an amber 'needs enrichment' pill instead of the raw email; per-row violet Sparkles button (data-testid=lead-enrich-<email>) is present on rows with a website and clicking it fires POST /api/outreach/leads/{id}/enrich returning 200 with the expected {ok, lead, emails, phones, fetched_pages} shape.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "tested_features": {
+    "single_enrich_empty_site_returns_ok": "PASS — fetched_pages>=1, empty emails/phones, ok=true.",
+    "synthetic_email_replaced": "PASS — noemail+xxx@google-maps.lead replaced with contact@brand.io / hello@brand.io; enrichment subdoc persisted with emails_found, phones_found, fetched_pages, enriched_at.",
+    "preserves_real_email": "PASS — ceo<random>@acme.io NOT overwritten even when site has mailto:hello@acme.io.",
+    "phone_extraction": "PASS — tel:+14155551234 AND body '+1 (415) 555-9876' both surfaced; lead.phone populated when previously empty.",
+    "obfuscated_emails_decoded": "PASS — 'mark [at] foo.io' AND 'mark (at) foo (dot) io' both decoded to mark@foo.io.",
+    "bad_email_filtering": "PASS — icon@image.png dropped (BAD_EMAIL_SUFFIXES), noreply@brand.io dropped (GENERIC_LOCALPARTS), sales@brand.io kept.",
+    "domain_hint": "PASS — both random@gmail.com and hi@acme.io extracted (loopback netloc means no on-domain bias triggers in this harness, but discovery works).",
+    "bulk_only_synthetic": "PASS — 3 synthetic leads picked, 1 normal lead correctly excluded by the @google-maps.lead OR ^noemail+ regex.",
+    "bulk_explicit_ids": "PASS — payload {lead_ids:[a,b]} returned total=2, only a and b in results, c untouched.",
+    "rbac_intern_forbidden": "PASS — intern@projexino.com → POST /enrich returns 403.",
+    "ui_phone_column_position": "PASS — table headers = ['', 'Name', 'Email', 'Phone', 'Company', 'Industry / Country', 'Stage', 'Temp', 'Score', ''] (idx Email=2 < Phone=3 < Company=4).",
+    "ui_bulk_enrich_button": "PASS — data-testid=leads-enrich-all present, label='Enrich Maps leads', violet styling.",
+    "ui_needs_enrichment_pill": "PASS — synthetic lead row renders amber span.bg-amber-100 with text 'needs enrichment' instead of raw email.",
+    "ui_per_row_enrich_button": "PASS — data-testid=lead-enrich-noemail+uia499e5@google-maps.lead present; clicking fires POST /api/outreach/leads/{id}/enrich → 200 with full {ok:true, lead, emails, phones, fetched_pages} shape."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter49_enrichment.py",
+    "/app/test_reports/pytest/iter49_enrichment.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "outreach.py _extract_emails strips trailing punctuation with .strip('.,;:') but does NOT strip leading quotation marks or angle brackets — emails embedded in JSON strings like \\\"contact@x.io\\\" may slip through cleanly because EMAIL_REGEX excludes quotes, so this is OK.",
+    "_fetch limits body to 600KB and only accepts content-type containing 'html' or 'text' — good safety against PDF/binary bombs.",
+    "_candidate_urls always tries 10 paths (/, /contact, /contact-us, /contact.html, /about, /about-us, /about.html, /team, /imprint, /legal-notice) but the loop short-circuits only when fetched_pages>=2 AND emails found. For sites with no contact page, it will still hit up to ~10 URLs serially with 10s timeouts each = potentially 100s of wall time on a slow/unreachable host. Consider an overall budget (e.g. asyncio.wait_for(_enrich_lead_doc, timeout=20)) so a hung host can't stall a batch.",
+    "enrich_lead has a uniqueness check (find another lead with same email) but only checks the FIRST candidate; if duplicate, it then tries the next. However, if ALL candidates are duplicates, lead.email stays as the synthetic noemail+... — silent no-op. Consider returning a 'reason: duplicate emails' so the UI can show a clearer hint.",
+    "enrich_leads_batch is sequential (good for politeness) but on a 25-lead synthetic batch with 10s-per-page worst case, this can take many minutes. Consider asyncio.gather with a small semaphore (e.g. 3-5) for faster bulk runs on small hosting.",
+    "Pydantic email_validator rejects RFC reserved TLDs like .test / .example (we hit this during test design). The /api/outreach/leads endpoint inherits this strictness — fine for production but worth a doc note for self-hosters who may try to seed with example.com fixtures.",
+    "Frontend Outreach.jsx per-row enrich testid embeds the raw email (data-testid=`lead-enrich-${l.email}`). With '+' and '@' in synthetic emails, the selector still works (we verified via CSS attribute selector), but consider data-testid=`lead-enrich-${l.id}` for cleaner Playwright targeting."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter49_enrichment.py (new — 10 tests, in-process loopback HTML server, monkey-free)",
+    "/app/test_reports/pytest/iter49_enrichment.xml (new — JUnit results)",
+    "/app/test_reports/iteration_49.json"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% (4/4 requirements verified)"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 (priv), intern@projexino.com / Intern@2026 (for RBAC 403 check). Read from /app/memory/test_credentials.md.",
+  "seed_data_creation": "Each pytest creates TEST_ / noemail+<uuid>@google-maps.lead leads and deletes them in a module-scoped autouse teardown. UI test created and then cleaned up one synthetic lead (noemail+ui<rand>@google-maps.lead, name='UI Test Synthetic Lead'). No stray data left behind.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Enrichment is fully working. Test harness pattern for any future enrichment-flavoured features: spin up http.server.ThreadingHTTPServer in pytest, bind 127.0.0.1:0, register canned HTML at '/' (because backend's _candidate_urls only uses netloc and probes '/' first), set lead.website = f'http://127.0.0.1:{port}'. Pydantic email validation rejects .test / .example TLDs — use .io/.com/.net in fixtures. Outreach Leads tab testids: leads-enrich-all (bulk button), lead-enrich-<email> (per row). The amber pill is span.bg-amber-100 inside the Email cell. Synthetic detection regex on backend: ^noemail+ OR @google-maps.lead$.",
+  "rca_of_issue": "No code issues found. Initial pytest failures were entirely in test harness design: (1) Pydantic rejected .test TLDs in payload emails → switched to .io/.com; (2) original handler only served at exact paths but backend's _candidate_urls always tries '/', '/contact', etc. on the netloc — fixed handler to fall back to PAGES['/']. Backend code is solid."
+}

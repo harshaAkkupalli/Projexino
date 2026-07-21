@@ -1,0 +1,61 @@
+{
+  "summary": "Iter 37 / Phase B testing — unified login UI + HR onboarding auto-account-creation. Backend 5/6 pass, frontend 100% pass. Found ONE real backend bug in the existing-user collision path: dummy_password is wrongly populated with an unused random string on the response (spec says it must be EMPTY).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/hr/onboarding (existing-email path)",
+        "issue": "When the onboarding email already maps to an existing user, the response (and persisted record) still contains a randomly-generated dummy_password that cannot be used to log in. Spec requires dummy_password to be an empty string in this case. The existing user's password_hash is correctly left unchanged (manager can still log in with Manager@2026), so this is a response-payload bug, not a security regression. Root cause: in onboarding.py::create_onboarding, `rec['dummy_password'] = dummy_pw if portal_uid else ''` — but `portal_uid` is truthy in BOTH the new-user and existing-user branches (since `_create_portal_user` returns the existing user's id when the email is taken). The code never distinguishes the two outcomes.",
+        "priority": "HIGH",
+        "fix": "Make `_create_portal_user` return a tuple (user_id, created_new: bool). In create_onboarding, set `rec['dummy_password'] = dummy_pw if created_new else ''`. Same change needed for the UI: green CredentialsCard currently renders `{rec.dummy_password || '—'}` which would mislead HR into copying a useless string."
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verified_flows": [
+    "GET /login renders [data-testid=login-form] with NO role-card-* anchors anywhere on the page.",
+    "Visible inputs: login-email, login-password, login-submit — all present and interactive.",
+    "Eye-icon button toggles login-password input type from 'password' to 'text' and back.",
+    "GET /api/settings/public returns show_demo_creds=true → login-demo-toggle visible. Clicking expands the panel and reveals login-demo-super-admin / -manager / -hr / -intern / -team-member buttons (all 5).",
+    "Clicking login-demo-super-admin auto-fills login-email='admin@projexino.com' and login-password (non-empty).",
+    "Wrong-password POST returns 401; UI shows 'Invalid credentials — please try again' toast and stays on /login.",
+    "admin@projexino.com / Projexino@2026 → 'Welcome back' toast → navigates to /app.",
+    "intern@projexino.com / Intern@2026 → navigates to /intern (not /app) — correct role routing.",
+    "<canvas> from react-three-fiber rendered; animated gradient blobs visible (THREE.Clock console warning is benign, deprecation notice only).",
+    "POST /api/hr/onboarding with a NEW email → 200, account_created=true, portal_user_id present, dummy_password length=12, contains at least one digit and one symbol (regex-verified).",
+    "POST /api/auth/login with (new-hire email, returned dummy_password) → 200 + token. Hash matches.",
+    "POST /api/hr/onboarding with existing manager email → account_created=true, portal_user_id reuses existing user id. Existing user's password_hash UNCHANGED (Manager@2026 still works, returns 200). BUG: dummy_password field is non-empty (see backend_issues.critical).",
+    "Intern role POST /api/hr/onboarding → 403.",
+    "GET /api/hr/onboarding/{id}/offer-letter.pdf → 200, valid PDF (%PDF magic, >1KB).",
+    "DELETE /api/hr/onboarding/{id} → 200, record gone, but portal user is NOT auto-deleted (the new hire can still log in with the dummy password after the onboarding record is removed). Confirmed by re-logging in post-delete.",
+    "HrOnboarding.jsx CredentialsCard component renders [data-testid=onb-creds-card] with two variants: green + onb-copy-email/onb-copy-password when account_created=true, red 'Portal account NOT created' when account_created=false (verified via code review)."
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter37_onboarding_account.py",
+    "/app/test_reports/pytest/iter37_results.xml"
+  ],
+  "action_items": [
+    "Fix onboarding.py: distinguish new-user vs existing-user creation. Set rec['dummy_password']='' when the user already existed. Refactor _create_portal_user to return (user_id, created_new).",
+    "Optionally update HrOnboarding.jsx CredentialsCard to render a clear 'Account already existed — use their normal password' subtitle when account_created=true AND dummy_password is empty (third UI variant)."
+  ],
+  "critical_code_review_comments": [
+    "onboarding.py:418-428 — dummy_password leak for existing-user collision is a real bug; the random password is generated, briefly threaded into _create_portal_user (where it is silently discarded), then persisted on the onboarding record AND returned in the API response. Anyone reading the HR drawer would think this is the new login password for the user, but logging in with it fails. Fix is small.",
+    "onboarding.py:177-228 — _create_portal_user catches ALL exceptions on the rbac._hash import path and returns None silently. If the hasher ever genuinely errors out, the onboarding record will have account_created=false with no audit trail. Consider logging the exception before returning None.",
+    "onboarding.py:354 — duplicate active onboarding for the same email returns 400, but the manager existing-user test path can fail intermittently on repeated runs because prior records linger. Tests handle this by skipping on the duplicate error; production behaviour is acceptable.",
+    "Login.jsx:108 — Reads role from localStorage.getItem('pj_role') with JSON.parse, but if AuthContext.login stores the role under a different key (e.g., pj_user.role) this branch silently falls back to /app for an intern. Currently working but tightly coupled to context internals — consider deriving role from the login() return value instead."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter37_onboarding_account.py (new)"
+  ],
+  "success_rate": {"backend": "83% (5/6)", "frontend": "100%"},
+  "test_credentials": "admin@projexino.com / Projexino@2026, manager@projexino.com / Manager@2026, intern@projexino.com / Intern@2026 — all working.",
+  "seed_data_creation": "Created two TEST_QA_ onboarding records during the run (one new-hire, one manager-collision). New-hire record was deleted by the cascade test; manager-collision record may linger and the test will auto-skip if so on the next run. The auto-created portal user for the new-hire (test_newhire_<ts>@projexino.com) was NOT deleted by design (matches spec) — main agent may want to garbage-collect TEST_* users periodically.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Phase B unified-login UI is fully verified. The ONLY outstanding backend issue is the dummy_password-leak for existing-email onboarding (HIGH). After main agent's fix, just re-run test_iter37_onboarding_account.py — the test_existing_email_does_not_reset_user_password case will then pass and the suite will be 6/6.",
+  "rca of the issue": "BUG: dummy_password leaks for existing-user collision.\nFile: /app/backend/onboarding.py\nLines: 417-428 in create_onboarding(). Sequence:\n  1. dummy_pw = _gen_dummy_password()  → always generates a fresh random pw\n  2. portal_uid = await _create_portal_user(db, rec, dummy_pw, …)\n     → _create_portal_user returns existing user.id if email already in db.users, never using dummy_pw\n     → returns brand-new user.id if not, after hashing dummy_pw into db.users\n  3. rec['account_created'] = portal_uid is not None\n  4. rec['dummy_password'] = dummy_pw if portal_uid else ''\nProblem: step 4 cannot tell apart the 'new user just created' vs 'existing user found' branch — both yield a truthy portal_uid. Spec requires dummy_password='' for the existing branch.\nReproduction: see test_existing_email_does_not_reset_user_password in test_iter37_onboarding_account.py.\nMitigation: change _create_portal_user to return (user_id, created_new: bool), then `rec['dummy_password'] = dummy_pw if created_new else ''`."
+}

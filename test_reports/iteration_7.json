@@ -1,0 +1,34 @@
+{
+  "summary": "Batch 1 (Intern Hub rebrand + per-intern Assign Project/Task + Chat popup + demo-creds toggle + task attachments) — Backend 35/35 pytest pass (11 NEW Batch1 + 24 phase4 regression). Frontend: all critical flows verified live on https://projexino-hub.preview.emergentagent.com. Login demo-creds box renders by default, admin dashboard has admin-settings-panel + toggle-demo-creds (member does NOT), toggling persists in db.settings and /api/settings/public reflects it (no auth) — restored to true at end. Sidebar shows 'Intern Hub', /app/manager heading 'Manage every intern from one screen.', each row has assign-project/assign-task/chat-intern buttons. Assign Task modal opens with title/project/deadline/file-picker/submit. Assign Project modal opens, project select populated, submit produces 'Project assigned' toast. Chat popup opens, message typed via chat-popup-input + chat-popup-send appears in list. Tasks page Add Task modal task-assignee is now a <SELECT> (not text input). Regression: verify-document tri-state, intern docs, members directory still work.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_batch1.py",
+    "/app/test_reports/pytest/batch1_results.xml",
+    "/app/backend/tests/test_phase4.py",
+    "/app/test_reports/pytest/phase4_batch1.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "phase4.py L645 — task-attachment endpoint correctly authorizes admin/manager/hr OR the intern's linked_user_id, and 403s for random members. Verified live with member@projexino.com → 403.",
+    "phase4.py L611-614 — /api/settings/public defaults show_demo_creds=true when the workspace doc is missing (good safe default).",
+    "self_service.py L99-101 — me_intern_tasks strips heavy content_base64 from attachments and only returns id/name/mime_type metadata. Confirmed via API + UI.",
+    "phase4.py L486-501 — publish_to_project_docs writes to db.documents with the correct project_id, name, mime_type, uploader, owner_id and tracks size in bytes (base64 length * 3/4).",
+    "phase4.py L584-590 — dm-channel correctly find-or-creates a kind=direct channel keyed on sorted member_ids; idempotent (second call returns same channel.id). Verified.",
+    "Frontend Manager.jsx — buttons use data-testid prefixes (assign-project-, assign-task-, chat-intern-), modals expose assign-task-modal / assign-project-modal / chat-popup with all expected inner testids. Good for testability."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_batch1.py (new)"
+  ],
+  "success_rate": {"backend": "100% (35/35: 11 batch1 + 24 phase4)", "frontend": "100% — login demo-creds toggle (admin-only) end-to-end, Intern Hub rename, Assign Task modal + attachments, Assign Project modal + toast, Chat popup send+display, Tasks assignee SELECT, member access-control"},
+  "test_credentials": "admin@projexino.com/Projexino@2026, manager@projexino.com/Manager@2026, hr@projexino.com/HR@2026, intern@projexino.com/Intern@2026, member@projexino.com/Member@2026 — all verified live.",
+  "seed_data_creation": "Created multiple TEST_Task_* and TEST_TaskPub_* intern tasks on seeded intern@projexino.com row (with small base64 'hello.txt' / 'spec.txt' attachments). Also assigned an existing project to the seeded intern (intern's assigned_projects now contains the project; project.members now contains 'Projexino Intern'). db.settings.show_demo_creds restored to TRUE at end so login UI continues to show demo creds.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Batch1 endpoints fully covered by /app/backend/tests/test_batch1.py. Seeded intern@projexino.com has TEST_Task_* tasks with one attachment + assigned_projects entries; cleanup is optional. db.settings doc is auto-created on first PATCH and currently has show_demo_creds=true. To find the seeded intern id, GET /api/manager/interns and filter by intern.email=='intern@projexino.com'. Note: when chaining Esc+open of multiple modals back-to-back in playwright, add 1500ms wait — assign-project-modal opens reliably on its own click.",
+  "rca of the issue": "No outstanding bugs in this batch."
+}

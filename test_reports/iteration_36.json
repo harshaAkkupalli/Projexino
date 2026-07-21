@@ -1,0 +1,34 @@
+{
+  "summary": "Phase A cleanup — frontend-only verification with super_admin login. All 6 acceptance criteria PASSED.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verified_flows": [
+    "Launchpad (/app): launch-card-ai-settings, launch-card-notifications-permissions, launch-card-leave all ABSENT. Expected cards (dashboard/projects/hr/settings/website-config) PRESENT.",
+    "Settings (/app/settings): all 5 tabs (settings-tab-gmail, -templates, -notifications, -ai, -notif-perm) rendered. Clicking settings-tab-ai mounts settings-ai-pane (AISettings UI). Clicking settings-tab-notif-perm mounts settings-notif-perm-pane (NotifPermissions UI).",
+    "Deep links: /app/settings?tab=ai opens AI pane. /app/settings?tab=notif-perm opens Notif. Permissions pane.",
+    "Legacy redirects: /app/ai-settings -> /app/settings?tab=ai (settings-ai-pane rendered). /app/notifications-permissions -> /app/settings?tab=notif-perm (settings-notif-perm-pane rendered). Implemented via <Navigate replace> in App.js for both /app and /m portals (lines 202, 204, 245, 247).",
+    "HR Team Access (/app/hr): 10 hr-tab-* present, hr-tab-team-access between onboarding and leave. Clicking renders AdminsTab; acl-new-admin button visible & enabled; clicking opens Create Admin modal.",
+    "Team page (/app/team, All Team tab): acl-new-admin is disabled=true with class cursor-not-allowed; acl-read-only-hint amber info card visible directing users to HR -> Team Access."
+  ],
+  "rbac_note": "Intern role RBAC was NOT explicitly re-verified in this run (existing usePermissions gate unchanged; no code paths affected by Phase A). Settings & HR cards already gated by roles:['admin','super_admin'] / ['admin','super_admin','hr','manager'] in CARDS_PORTAL — gating is untouched.",
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Settings.jsx (line 28-30): URLSearchParams reads window.location.search at component init only. If user navigates between ?tab=ai and ?tab=notif-perm via in-app links without a full reload, the initial state will not re-sync. Consider deriving from useLocation().search via useEffect for safer query-param syncing.",
+    "Settings.jsx clears query string in GmailPane fetchStatus useEffect via window.history.replaceState({}, '', '/app/settings') (line 123) — this also wipes ?tab=ai|notif-perm if a Gmail OAuth redirect lands while user is on those tabs. Low risk but worth noting.",
+    "Launchpad.jsx CARDS_PORTAL: cards order has Dashboard, Projects, Chat, Leads, Team, Finance, AI, Booking (Calendly), Profile, HR, Settings, Website Config. With 6 per page on mobile, this still produces 2 pages — acceptable.",
+    "HRModule.jsx: AdminsTab is imported from AccessControl and rendered with canCreate={true} — verified working end-to-end including modal open."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "100%"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 (super_admin) — login succeeded.",
+  "seed_data_creation": "None.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase A is fully shipped & verified. Next phases B/C/D (per problem statement, 6 enhancements split into 4 phases) still pending. Smoke regression on Newsletter Compose-from-blog flow and HR Onboarding create flow was NOT run in this iteration to keep scope tight — main agent can self-validate or request a separate regression pass.",
+  "rca of the issue": "n/a — no issues found."
+}

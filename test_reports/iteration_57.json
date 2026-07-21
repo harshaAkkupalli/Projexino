@@ -1,0 +1,50 @@
+{
+  "summary": "Iter57 — self-hosted Projexino logo (Android TWA/WebView fix) verified. Backend: 8/8 pytest passed in test_static_assets_iter57.py — /projexino-logo.png (25 KB, 200, image/png, magic \\x89PNG), /projexino-icon-192.png (11 KB), /projexino-icon-512.png (42 KB), /projexino-favicon-32.png (0.9 KB) all serve same-origin at REACT_APP_BACKEND_URL; manifest.json valid JSON with icons array pointing to /projexino-icon-192.png (192x192) + /projexino-icon-512.png (512x512), NO CDN references in icons; index.html has <link rel='icon' href='/projexino-favicon-32.png'> and <link rel='apple-touch-icon' href='/projexino-icon-192.png'>; existing contract PDF GET /api/contracts/d11920aac36d4d4abe6586d8644bc606/pdf still returns %PDF-1.7 and >30 KB (backend PDF path unaffected). Frontend Playwright: /login page has 2 <img> tags, both /projexino-logo.png (768x358 loaded), 0 CDN refs, 0 failed. Post-login /app dashboard has 1 <img> = /projexino-logo.png (top-nav Logo). Bundle grep on /static/js/bundle.js: exactly 4 CDN references remain, all pointing to the same og:image URL used by SEO.jsx / Landing.jsx / BlogPost.jsx / LocationLanding.jsx structured-data (intentional per review). Login/Logo/Loader/HrLetters no longer inline the CDN URL in the built bundle for their <img src>. FAILURE POINT — see frontend_issues below: HR letters live-preview and Letterhead settings modal STILL render the CDN URL as the <img src> because HrLetters.jsx line 278 reads `profile?.logo_url || DEFAULT_LOGO` and the DB singleton `hr_letter_settings.singleton.logo_url` still holds the CDN URL. This means on Android WebView the HR letter preview logo will still fail — the iter57 fix is incomplete for that surface.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "HrLetters.jsx (line 278) — live-preview panel + line 496 (letter card preview) + line 451 (letterhead-settings form initial logo_url)",
+        "issue": "Live-preview <img src> falls back to DEFAULT_LOGO ('/projexino-logo.png') ONLY when profile.logo_url is empty. Since hr_letter_settings.singleton.logo_url in DB is still the CDN URL (https://customer-assets.emergentagent.com/job_projexino-hub/artifacts/k85zxnvo_cropped-projexino-scaled-1-768x358%20(1).png), the app-portal preview panel loads that cross-origin CDN URL — exactly the scenario iter57 was meant to eliminate for Android TWA. Verified via Playwright: opening /app/hr?tab=letters → first offer letter → 3 imgs on page, 1 CDN hit, 0 local /projexino-logo.png. Opening Letterhead Settings modal → 4 imgs, 2 CDN hits, LOGO URL text input value = the CDN URL. Backend PDF path is unaffected because WeasyPrint runs server-side with no WebView constraint.",
+        "selector": "img inside div.rounded-2xl.border-slate-200.bg-slate-50 (live preview) and img inside letterhead-settings modal LivePreview block",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_static_assets_iter57.py",
+    "/app/test_reports/pytest/iter57_static.xml"
+  ],
+  "action_items": [
+    "Decide how to handle HR letter logo on the frontend live-preview vs backend WeasyPrint PDF: OPTION A (recommended) — in HrLetters.jsx, always render DEFAULT_LOGO ('/projexino-logo.png') in the app-portal <img> for both the letter live-preview (line 278) and the Letterhead modal LivePreview (line 496); keep profile.logo_url only for backend/PDF use via the API. OPTION B — update the DB singleton hr_letter_settings.singleton.logo_url to a same-origin absolute URL (e.g. https://projexino-hub.preview.emergentagent.com/projexino-logo.png) so WeasyPrint AND the WebView both get a same-origin image; this requires a one-time migration. OPTION C — auto-rewrite CDN URL → local path in the frontend render step (e.g. `src = (logo_url && logo_url.includes('customer-assets.emergentagent.com')) ? DEFAULT_LOGO : logo_url`) — safest without DB write. Pick one before the Android TWA release to prevent the very failure the fix targets.",
+    "(Optional) In the Letterhead Settings modal, add a small helper button 'Reset to Projexino default' that overwrites the logo_url input with '/projexino-logo.png' so admins can self-heal the singleton after this iteration."
+  ],
+  "critical_code_review_comments": [
+    "Iter57 correctly self-hosts the top-nav Logo (`Logo.jsx`), the loader (`Loader.jsx`), the sign-in card (`Login.jsx` line 234) and the HR letters DEFAULT_LOGO fallback. Verified via bundle grep: no chunk inlines the CDN URL for those four files — only Landing/BlogPost/LocationLanding/SEO (structured-data & og:image) reference the CDN, which is intentional.",
+    "The HR letters live-preview and Letterhead-settings LivePreview still render `profile?.logo_url` as-is. Because the DB seed value is the CDN URL, users of Android WebView loading /app/hr?tab=letters will see the preview logo silently fail (same root cause the fix was written to solve). See action item above.",
+    "Manifest.json purpose value 'any maskable' is correct — Android TWA will use the 192px for launcher and 512px for splash. Verified icons are square, PNG, and both magic bytes + sizes match spec.",
+    "Recommend adding a `Content-Type: image/png; charset=binary` header check in a smoke-test suite that runs at deploy time — regression insurance against a future misconfigured static-serve.",
+    "Not a bug for iter57, but for defense-in-depth: convert `/projexino-logo.png` references in JSX to a shared `import LOGO from '/projexino-logo.png'` via Webpack so build-time bundling can fingerprint the asset — currently the 4 files hard-code the string path; if we ever rename, we'd have to touch 4 files.",
+    "Regression: contract PDF backend flow (WeasyPrint) still uses `hr_letter_settings.singleton.logo_url` → the CDN URL. This is fine (WeasyPrint runs server-side, no WebView), but if the CDN ever goes offline the PDF will render without a logo. Consider caching the logo bytes in-DB or on-disk during letterhead-settings save."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_static_assets_iter57.py (created)",
+    "/app/test_reports/pytest/iter57_static.xml (generated)",
+    "/app/test_reports/iteration_57.json (this file)"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8 iter57 static-asset + contract-PDF regression)",
+    "frontend": "80% (login + dashboard + bundle-grep OK; HR letter preview + Letterhead modal preview still render CDN img — reported)"
+  },
+  "test_credentials": "admin@projexino.com / Projexino@2026 (super_admin) — from /app/memory/test_credentials.md",
+  "seed_data_creation": "None. Tests are read-only against static assets + one GET /api/contracts/{cid}/pdf; no DB writes.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter57 self-hosts /projexino-logo.png, /projexino-icon-{192,512}.png, /projexino-favicon-32.png at /app/frontend/public/. manifest.json + index.html favicon links point to the local files. Login/Logo/Loader components verified same-origin via Playwright + bundle grep. Regression: /api/contracts/{cid}/pdf still returns %PDF-1.7 ~90 KB — WeasyPrint path untouched. Open issue: HrLetters.jsx line 278 (live preview) + line 496 (letter card preview) + line 451 (letterhead-settings form) all read `profile?.logo_url` which still holds the CDN URL from the singleton. To fully close the Android WebView fix, either force DEFAULT_LOGO in these 3 spots or migrate the DB value. When retesting, hit /app/hr?tab=letters, open first offer letter, run `Array.from(document.images).map(i=>i.src)` in DevTools — expect 0 CDN hits.",
+  "rca of the issue": "Reproduction: (1) Login as admin@projexino.com / Projexino@2026. (2) Navigate to /app/hr?tab=letters. (3) Click first offer letter card. (4) Live-preview panel on right renders <img src='https://customer-assets.emergentagent.com/job_projexino-hub/artifacts/k85zxnvo_cropped-projexino-scaled-1-768x358%20%281%29.png'>. Root cause: HrLetters.jsx line 278 is `<img src={profile?.logo_url || DEFAULT_LOGO}>`. profile is fetched from GET /api/hr/letters/company-profile whose response body contains `logo_url: 'https://customer-assets.emergentagent.com/...'` (the seeded default in hr_letter_settings.singleton). Because profile.logo_url is truthy, the OR fallback is skipped and the CDN URL wins. On desktop browsers CORS is permissive so it loads fine; on Android TWA/WebView it is intermittently blocked, which is the exact failure mode iter57 targets. Mitigation: (a) force DEFAULT_LOGO in the frontend render (2-line change), or (b) migrate the singleton value to a same-origin URL, or (c) inline the logo as base64 in the DB during letterhead-settings save (bulletproof, works for both frontend + WeasyPrint)."
+}
