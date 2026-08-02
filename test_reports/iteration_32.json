@@ -1,0 +1,37 @@
+{
+  "summary": "Iter 32 — Website Experience Manager (WXM) — full backend + frontend smoke. Backend: 20/20 tests PASS in test_iter32_wxm.py covering list/CRUD on profiles/themes/heroes/ctas, public /detect resolution (industry+country match, default fallback, preview_profile_id force), single-default invariant via PATCH, intern RBAC 403 on both /api/wxm/profiles and /api/wxm/analytics, public detect no-auth, and analytics shape with profile_slug + hits + country_count. Frontend: WXM tab loads at /app/website-config?tab=wxm with hero header, 5 sub-tabs (Experience Profiles / Themes / Heroes / CTAs / Analytics & Preview), live count chips (Profiles:0, Themes:1, Heroes:1, CTAs:1) matching backend. All data-testids resolve: wxm-root, wxm-tab-{profiles|themes|heroes|ctas|analytics}, wxm-new-{profile|theme|hero|cta}, wxm-profile-modal, wxm-profile-save, wxm-cta-save, wxm-analytics-days, wxm-analytics-rows, wxm-preview-select, wxm-preview-launch. E2E create flow verified: CTA create -> 'CTA created' toast -> card with orange button preview rendered + CTA count chip incremented to 2. Existing Hub tabs (Website Config, Blog, LinkedIn, Newsletter) still present (regression OK). Backend tests fully cleaned up TEST_-prefixed data.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "WXM Profile modal (Industry/Country/Audience selects)", "issues": ["React hydration console warning: 'In HTML, <span> cannot be a child of <option>'. Cosmetic only; functionality unaffected. The select options render decorative spans inside <option> which the browser strips. Replace with plain text content inside <option> to silence the warning."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter32_wxm.py",
+    "/app/test_reports/pytest/iter32_wxm.xml"
+  ],
+  "action_items": [
+    "[LOW] In WebsiteExperienceManager.jsx ProfileEditor, the INDUSTRIES/COUNTRIES/AUDIENCES <option> renders something that wraps as <span> child — change to plain text labels to remove hydration warning.",
+    "No blocker actions — feature is production-ready."
+  ],
+  "critical_code_review_comments": [
+    "wxm.py:90-188 — All handlers explicitly named (list_themes/create_theme/etc) — KeyError shadowing avoided correctly. Good pattern given the earlier closure-related FastAPI gotcha.",
+    "wxm.py:107-108 — Single-default invariant on POST also resets all other profiles' is_default; PATCH does the same via {id: {$ne: rid}} — consistent and correctly tested.",
+    "wxm.py:204 — list_profiles uses sort([(is_default,-1),(priority,-1),(created_at,-1)]) which gives expected default-first ordering.",
+    "wxm.py:240-253 — Detection analytics are wrapped in try/except (silent) — fine for non-critical telemetry but consider logging the exception for observability.",
+    "wxm.py:227 — Final 'if not chosen and all_profiles: chosen = all_profiles[0]' means an unpublished or unrelated profile could leak when no default exists. Acceptable given is_published filter at line 204, but worth noting if multi-tenant later.",
+    "wxm.py:129 — delete_profile returns {ok: false} on missing id instead of 404. Test allows both, but standard would be 404. Minor."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter32_wxm.py (NEW — 20 tests across 7 classes: List, Create, Detect, DefaultInvariant, RBAC, Analytics, Cleanup)"
+  ],
+  "success_rate": {"backend": "100% (20/20)", "frontend": "100% on smoke + e2e CTA create flow"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 (super_admin) ; intern@projexino.com / Intern@2026 (intern — used for 403 RBAC tests). Both verified working.",
+  "seed_data_creation": "Tests create TEST_-prefixed Theme/Hero/CTA + 2 Profiles (TEST_Fintech US default, TEST_Health UK). All cleaned up in TestCleanup. UI smoke created one 'UI_TEST_CTA' which was deleted via API afterwards. DB ends with only the previous seed (1 theme Sunset, 1 cta Book demo, 1 hero Fintech Hero) — same state as before this iteration.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "WXM is solid end-to-end. Backend test file is /app/backend/tests/test_iter32_wxm.py — can be reused as regression. To run: `cd /app && set -a && source frontend/.env && set +a && python -m pytest backend/tests/test_iter32_wxm.py -v`. Login flow for Playwright: dismiss SKIP modal -> click [data-testid='role-card-admin-cta'] -> fill input[type=email] + input[type=password] -> click button[type=submit]. WXM deep link: /app/website-config?tab=wxm. Next per user-approved plan: HR Onboarding, then HR Performance.",
+  "rca of the issue": "No issues found. Feature WXM (Experience Profiles, Themes, Heroes, CTAs, Public Detect, Preview-As, Analytics) is production-ready. The earlier KeyError shadowing bug (mentioned in handoff) is verified resolved — every handler in wxm.py is uniquely named (list_profiles/create_profile/update_profile/delete_profile/list_themes/create_theme/... etc) so FastAPI's route registry never collides."
+}

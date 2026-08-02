@@ -1,0 +1,62 @@
+{
+  "summary": "Phase A — RBAC backend testing. Wrote 16 new pytest cases in /app/backend/tests/test_phase_a_rbac.py covering auth role, /api/rbac/permissions, /api/rbac/matrix (GET/PUT/reset, 403 for non-super), /api/rbac/admins CRUD + duplicate-email, PATCH role/primary demotion, promote-primary, cannot-delete-primary, DELETE, /api/rbac/me GET+PATCH persistence, and regression for /api/admin/users/reset-password and /api/notification-settings. All 16/16 PASS after a single fix I applied (ObjectId leak on POST /api/rbac/admins — see updated_files). However, regression of /app/backend/tests/test_iter15_presence_email.py reveals a CRITICAL widening miss: 15 prior-iteration tests now fail with 403 because admin@projexino.com is now super_admin and many privileged endpoints still hard-code the tuple ('admin','manager','hr') without super_admin. Phase A widening was applied to strict admin-only checks but missed the priv-tuple checks across email_campaigns, email_module, finance(_require_priv), issues, phase4, presence, webpush_mod.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "Multiple priv-gated endpoints across email_campaigns.py, email_module.py, finance.py, issues.py, phase4.py, presence.py, webpush_mod.py",
+        "issue": "The widening of admin-gated checks to include super_admin was INCOMPLETE. All `('admin','manager','hr')` and `('admin','hr')` tuple checks still exclude super_admin, so admin@projexino.com (now super_admin) gets 403 Forbidden on many previously-working endpoints. This breaks 15 pre-existing tests in test_iter15_presence_email.py (login/logout auth events, presence list/stats, all email_campaigns endpoints, ai-draft). Lines to fix (add 'super_admin' to each tuple): email_campaigns.py:103, email_module.py:808 & 839, finance.py:694 (_require_priv), issues.py:113 & 192, phase4.py:134/295/372/439/497/519/584/643/713/740/777, presence.py:149, webpush_mod.py:198, and the 2 `('admin','hr')` tuples at phase4.py:298 & 376.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/rbac/admins",
+        "issue": "[FIXED by tester] `db.users.insert_one(doc)` mutates `doc` with a Mongo ObjectId `_id`. The handler then returned `doc` which caused FastAPI JSON encoding to raise 500 ('ObjectId object is not iterable'). Fixed by adding `doc.pop('_id', None)` before return in /app/backend/rbac.py."
+      },
+      {
+        "endpoint": "POST /api/rbac/admins (welcome email)",
+        "issue": "When notify() side-effect fires it tries `os.environ.get('APP_PUBLIC_URL','') + '/login'` then `.lstrip('/')` — if env var is unset the URL becomes 'login' (broken) rather than '/login'. Wrap with sensible default."
+      },
+      {
+        "endpoint": "Route docstring vs implementation mismatch",
+        "issue": "Review request says 'GET /api/auth/login' but the endpoint is POST /api/auth/login (correct in code). Docstring at top of /app/backend/rbac.py is fine; just confirm in the PR description."
+      }
+    ]
+  },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "test_report_links": [
+    "/app/backend/tests/test_phase_a_rbac.py",
+    "/app/test_reports/pytest/phase_a_rbac.xml",
+    "/app/test_reports/pytest/phase_a_regression.xml"
+  ],
+  "action_items": [
+    "CRITICAL: Add 'super_admin' to every `('admin','manager','hr')` and `('admin','hr')` role tuple in: email_campaigns.py:103, email_module.py:808+839, finance.py:694, issues.py:113+192, phase4.py:134/295/298/372/376/439/497/519/584/643/713/740/777, presence.py:149, webpush_mod.py:198.",
+    "Consider introducing a single shared helper like `ROLES_PRIV = ('super_admin','admin','manager','hr')` (or `is_priv(user)`) imported from rbac.py to prevent this drift in future role additions.",
+    "Default APP_PUBLIC_URL fallback in /api/rbac/admins create flow so the welcome-email login URL never collapses to 'login'.",
+    "After widening, re-run /app/backend/tests/test_iter15_presence_email.py and test_phase_a_rbac.py — both should be green."
+  ],
+  "critical_code_review_comments": [
+    "rbac.py: register_rbac uses an empty `_noop` Depends + a `require_perm` stub that does nothing (lines 141-152). Either remove the dead code or actually enforce — currently misleading.",
+    "rbac.py:create_admin uses `payload.email.lower()` but `pydantic.EmailStr` already lower-cases the domain only; explicit `.lower()` on the full address is correct.",
+    "rbac.py:update_admin sets `updates['is_primary_super_admin']=True` only if `(updates.get('role') or target.get('role')) == 'super_admin'`. If a caller patches role='admin' AND is_primary=True simultaneously this becomes a no-op silently — preferable to 400.",
+    "rbac.py:promote_primary auto-promotes to super_admin if currently admin — good; but doesn't return the updated user object (just {'ok': True}). Frontend would need a refetch.",
+    "rbac.py:DEFAULT_MATRIX uses a single dict reference for the `admin` base — the spread {**{m:{a:True...}...}} creates new dicts (safe), good.",
+    "rbac.py:get_role_matrix merges saved with defaults at every call — fine for low traffic but should be cached or memoised by `updated_at` if matrix is read on every request.",
+    "server.py:822-827: seed_super_admin runs on startup, only updates role if currently not super_admin AND no existing primary — idempotent and safe.",
+    "rbac.py:update_me notifies super_admin + hr for ALL profile updates including avatar_url — could become noisy; gate on meaningful field changes."
+  ],
+  "updated_files": [
+    "/app/backend/rbac.py — added `doc.pop('_id', None)` after insert_one in POST /api/rbac/admins to prevent 500 ObjectId leak",
+    "/app/backend/tests/test_phase_a_rbac.py — new test file (16 tests, all passing)"
+  ],
+  "success_rate": {
+    "backend_phase_a": "100% (16/16 tests pass after one tester-side fix)",
+    "backend_regression": "58% (21/36 — 15 pre-existing tests now 403 due to incomplete super_admin widening)"
+  },
+  "test_credentials": "admin@projexino.com / Projexino@2026 (now role=super_admin, is_primary_super_admin=true), manager@projexino.com / Manager@2026, hr@projexino.com / HR@2026, member@projexino.com / Member@2026, intern@projexino.com / Intern@2026 — all verified live.",
+  "seed_data_creation": "Test admins are created with email prefix TEST_admin_<uuid8>@projexino.com and deleted in the same class teardown — no residual data.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run `python -m pytest /app/backend/tests/test_phase_a_rbac.py -v` for Phase A coverage (16 tests). Also run `python -m pytest /app/backend/tests/test_iter15_presence_email.py -v` — after main agent widens the priv tuples, all 36 should pass. The widening fix is purely mechanical: replace every `not in ('admin', 'manager', 'hr')` with `not in ('super_admin', 'admin', 'manager', 'hr')` and `in ('admin','hr')` with `in ('super_admin','admin','hr')`. Don't forget phase4.py lines 298 & 376 which are positive-form checks (not negative).",
+  "rca_of_the_issue": "Phase A introduced a `super_admin` role above `admin` and auto-promoted admin@projexino.com to super_admin. The dev correctly widened all 2-tuple `('admin',...)` checks to include super_admin (verified across email_module.py:410+, presence.py:267, server.py:719) BUT missed the 3-tuple `('admin','manager','hr')` priv checks that are used by ~22 endpoints across 7 files. Because admin@projexino.com IS the only seeded super-user used in regression tests, all of its previously-working privileged calls now return 403. Reproduction: login admin@projexino.com → call POST /api/email-campaigns or GET /api/admin/presence → 403 Forbidden. Mitigation: extend each role tuple with 'super_admin' OR introduce a centralised `is_priv_role(user)` helper in rbac.py and replace inline checks."
+}

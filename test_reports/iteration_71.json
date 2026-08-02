@@ -1,0 +1,33 @@
+{
+  "summary": "Iter71 verification of 4 new features (Playbook builder + QR doc-sign + Email blast + Pipeline dynamic tabs + Xino add-to-list). Backend 10/10 pytest passed. Frontend Playwright: all 6 documented flows verified end-to-end (Playbook builder w/ table+smart-paste+live preview+PDF download+delete; HR sign-doc QR + unauth /doc-sign/{token} full sign flow; Email blast modal populated 13 templates/1 playbook/1 blog + successfully created OUTREACH campaign; Analytics modal opened with 6-stat grid + Gmail-sync button; Pipeline dynamic tabs show 'All Leads (N)' + per-list pills; Xino Add-to-Lead-List badge + new list appears as pipeline tab). Gmail 400 errors on send/sync were EXPECTED and observed. Zero console errors on the app pages (only 400s on Gmail are expected).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter71_new_features.py",
+    "/app/test_reports/pytest/iter71_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Playbooks.jsx PlaybookBuilder is a 400+ line file — well factored into SectionEditor + DocPreview subcomponents inside the same file. Fine at current size.",
+    "OutreachBlast.jsx EmailBlastModal parallel fetches templates/playbooks/blogs on mount — no loading skeleton if one is slow. Cheap wins: show a spinner + prevent send while templates array is still empty. Minor UX polish.",
+    "OutreachBlast.jsx send() sets busy=true then on catch does not reset busy=false in the finally branch after early success — it does await onClose(); which then unmounts, but a stuck 'sending' state can appear if the request rejects and toast fires. Currently it does setBusy(false) after the try/catch, so OK.",
+    "HRModule.jsx SignDocsTab: hr-sign-qr-{id} button toggles state (click to hide). The current text 'QR' is small (11px). Consider a QrCode icon for icon+text clarity.",
+    "backend playbooks.py PDF generation embeds base64 images with reportlab — a corrupt image_b64 would raise. Wrap ImageReader in try/except to fall back to skipping the image. Non-blocking (server would 500 but only on user-supplied bad input).",
+    "outreach.py email-blast endpoint delegates to _run_campaign_batch which correctly returns Gmail-connection errors. Verified via UI: 'Gmail' text is surfaced in the toast. GOOD.",
+    "Public /api/public/doc-sign/{token} GET returns key 'doc_name' but the SignNow flow response uses 'name'. Consistency nit — public payload has {doc_name, body_html, already_signed, user_name}. Frontend DocSign.jsx already uses doc.doc_name || doc.name correctly."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter71_new_features.py (new — 10 tests: 4 playbook + 3 sign-doc + 3 blast)"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% (6/6 flows)"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 — verified.",
+  "seed_data_creation": "All created + cleaned: (1) 'TEST Iter71 Playbook' (created + downloaded + deleted via UI), (2) 'TEST Iter71 SignDoc' (created + signed publicly + deleted via API), (3) blast campaign 'Blast · Welcome · 2026-07-19' from UI blast (deleted via API), (4) 'TEST Iter71 List' + 'test_iter23_1779563354@example.com' lead created via Xino Add-to-List (both deleted via API). Existing 'Client Onboarding Playbook', existing 'Test' lead list, existing 4 CSV/UI test leads left intact.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Reusable pytest at /app/backend/tests/test_iter71_new_features.py covers all 4 iter71 features (10 tests, all green). Playwright verified: (1) /app/playbooks pb-new-btn → pb-builder-modal with pb-title/pb-theme-emerald/pb-sec-heading-0/pb-sec-body-0/pb-sec-add-table-0 → pb-sec-table-0 + pb-sec-0-cell-r-c + pb-sec-table-addrow-0/addcol-0; pb-live-preview + pb-preview-section-0 reflect heading/bullets/table cells; pb-smart-paste-toggle → pb-smart-paste-text + pb-smart-paste-append creates new sections; pb-save creates card on pb-shelf; pb-download-{slug} downloads PDF; pb-delete-{slug} cleans up. (2) /app/hr → Documents to sign tab → hr-sign-new opens editor (hr-sd-name, hr-sd-aud, hr-sd-body, hr-sd-file-input, hr-sd-save); on card hr-sign-qr-{id} toggles hr-sign-qr-panel-{id} with SVG QR; POST /api/hr/sign-docs/{id}/sign-link returns token; unauth /doc-sign/{token} shows doc-sign-page with doc name + doc-sign-name input + doc-sign-save → doc-sign-done. (3) /app/outreach?tab=leads select lead → leads-email-blast opens email-blast-modal; blast-template populated (13 templates), blast-pb-{slug} + blast-blog-{slug} shown, blast-batch-size defaults 300; blast-send creates campaign then 400 on Gmail send (expected). (4) /app/outreach?tab=campaigns click OUTREACH card → campaign-analytics-modal with analytics-stats grid (6 metrics) + analytics-sync-replies (400s on click w/ Gmail disconnected — expected) + event feed empty state. (5) /app/outreach?tab=pipeline shows pipeline-list-tabs with pipeline-list-all + pipeline-list-{id} pills that filter kanban. (6) /app/outreach?tab=xino → xino-est-toggle-{id} → xino-add-list-row-{id} with xino-list-name-{id} + xino-add-to-list-{id} button; on success xino-added-{id} badge shows + new list appears as pipeline tab. Ready for main-agent handoff.",
+  "rca_of_the_issue": "No issues found. All 4 iter71 features are shipped correctly and integrated end-to-end. Gmail 400 errors on send/sync are the documented expected behavior in this environment."
+}

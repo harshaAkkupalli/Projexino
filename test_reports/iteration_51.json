@@ -1,0 +1,42 @@
+{
+  "summary": "Iter 51 Outreach additions tested. Backend: 13/14 pytest pass + 1 skipped (AI reply live call). All new endpoints (conversation, inbox, ai-reply, send-reply, lead_list audience, sequence enroll by lead_list_id) wired correctly. Frontend: dashboard cards + pipeline stage cards fully clickable and deep-link correctly; Inbox tab + drawer Conversation panel + AI-reply controls render. Two real backend issues found: (1) send-reply returns 500 instead of 400 when Gmail OAuth token is stale (deleted_client RefreshError), (2) EMERGENT_LLM_KEY budget exhausted blocking live AI-reply generation.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/outreach/leads/{lid}/send-reply", "issue": "Returns HTTP 500 instead of 400 when a stale/revoked Gmail token sits in DB. RCA: lines 1854-1855 of outreach.py call _refresh_if_needed and _build_gmail_service without try/except — google.auth.exceptions.RefreshError ('deleted_client: The OAuth client was deleted.') bubbles up unhandled. Mitigation: wrap _refresh_if_needed + _build_gmail_service in try/except and raise HTTPException(400, 'Gmail not connected — reconnect from Settings').", "priority": "HIGH"},
+      {"endpoint": "POST /api/outreach/leads/{lid}/ai-reply", "issue": "EMERGENT_LLM_KEY budget exhausted — backend reply: 'litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 2.0039333000000004, Max budget: 2.001'. Endpoint correctly returns 502 with the message, but no AI drafts can be generated until the key budget is topped up. The code path itself is correct (validated tone validation, history check, JSON parsing, error wrapping).", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Lead Drawer · Conversation · Composer fields", "issue": "data-testids reply-subject, reply-body and reply-send are conditionally rendered behind `{composer && ...}` (Outreach.jsx ~L1664). They appear only after user toggles the composer open OR after a successful AI draft. Acceptable by design but worth flagging — automated tests must trigger the composer (Reply button or AI draft) before asserting those selectors.", "affected_selectors": ["reply-subject","reply-body","reply-send"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_outreach_replies_ai.py",
+    "/app/test_reports/pytest/iter51_outreach.xml"
+  ],
+  "action_items": [
+    "Wrap `await _refresh_if_needed(db, token)` and `_build_gmail_service(token)` in send-reply (outreach.py L1854-1855) in try/except → raise HTTPException(400, 'Gmail not connected — reconnect from Settings'). Same fix probably belongs around the campaign/sequence Gmail sends too.",
+    "Top up the EMERGENT_LLM_KEY budget — currently exhausted at 2.0039 of 2.001 USD, blocking POST /api/outreach/leads/{lid}/ai-reply live generation.",
+    "(Optional cosmetic) Outreach.jsx is now 2184 lines — well past the 700-line guideline. Consider splitting Inbox/Conversation/Drawer/Campaign modals into per-file modules."
+  ],
+  "critical_code_review_comments": [
+    "send-reply lacks defensive error handling around Gmail token refresh — produces 500s for the most common 'token revoked' scenario.",
+    "Inbox endpoint returns `{items, total}` but the review-request summary said 'array of inbound replies' — frontend handles `data.items` correctly so this is fine, just keep the contract consistent.",
+    "Outreach.jsx now 2184 lines (was 1820 in iter50). Split InboxTab, ConversationPanel and LeadDrawer into dedicated files for maintainability.",
+    "_outreach_reply_loop in server.py L1331-1340 has no jitter and silently fails any tick exception — fine, matches the rest of the codebase."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_outreach_replies_ai.py (new — 14 tests covering conversation, inbox, AI reply, send-reply, lead_list audience, sequence enroll by list)"
+  ],
+  "success_rate": {"backend": "93% (13 pass / 14 — 1 skipped LLM budget)", "frontend": "100% (selectors + deep-link routing verified)"},
+  "test_credentials": "admin@projexino.com / Projexino@2026",
+  "seed_data_creation": "Test fixture seeds 1 lead + 2 outreach_events (sent + replied) directly into Mongo for conversation/ai-reply tests; ephemerally cleaned up.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 51 (Outreach replies + AI reply). Pytest file: /app/backend/tests/test_outreach_replies_ai.py. Two issues for the next iteration: (a) wrap send-reply Gmail-refresh path in try/except so it returns 400 instead of 500 when token is stale; (b) EMERGENT_LLM_KEY budget exhausted so test_ai_reply_success is skipped — re-enable test once budget topped up. Frontend deep-link / dash-stage-* / Inbox / drawer Conversation+AI panel all verified live via Playwright.",
+  "rca of the issue": "send-reply 500 RCA: outreach.py L1850-1855 imports `_refresh_if_needed` from email_module and calls it on the resolved token unconditionally. The current admin token in DB was minted against a since-deleted Google OAuth client, so google.auth.exceptions.RefreshError surfaces and FastAPI returns 500. Reproduction: curl -X POST $URL/api/outreach/leads/<any_lid>/send-reply -d '{\"subject\":\"x\",\"body_html\":\"<p>y</p>\"}'. Mitigation: catch RefreshError + generic Exception around refresh/build_service and raise HTTPException(400, 'Gmail not connected — reconnect from Settings')."
+}

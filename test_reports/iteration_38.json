@@ -1,0 +1,57 @@
+{
+  "summary": "Iter 38 / Polish-batch testing — verified all 3 polish items: (1) intern button relocation from Team to HR ✓, (2) Login UI redesign with AI-themed 3D + dual logos ✓, (3) Invoice PDF logo + single-line big total ✓. Backend 4/4 pass on _build_invoice_pdf helper. Frontend playwright confirms login canvas, brand strip, neural-core scene, intern modal opens from HR but is hidden in Team. Only finding: intern@projexino.com login now lands on /app/dashboard instead of /intern — possible regression vs iter37.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Intern role routing",
+        "issue": "After successful login with intern@projexino.com / Intern@2026 the URL becomes /app/dashboard instead of /intern (or /intern/dashboard) as documented in test_credentials.md and verified in iter37. localStorage was cleared before the test so no stale state. Possible Login.jsx role-routing regression or AuthContext returning a non-intern role for this user — worth a quick check.",
+        "affected_selectors": ["login-submit"],
+        "priority": "MEDIUM"
+      }
+    ],
+    "design_issues": []
+  },
+  "verified_flows": [
+    "GET /login renders the redesigned scene: <canvas> from react-three-fiber visible with wireframe icosahedron neural-core (cyan) + glowing white emissive sphere + floating colored cubes (visible in screenshot).",
+    "Top-left brand strip 'PROJEXINO · Workspace OS' is rendered with a white rounded badge containing the Projexino bird logo — eye-test PASSES.",
+    "Inner round PROJEXINO logo badge present on the top-right of the login card — eye-test PASSES.",
+    "'AI-NATIVE WORKSPACE' badge visible in the left brand block. Three feature chips render: 'AI co-pilot built-in' · 'Audit-grade RBAC' · 'Neural workflows'.",
+    "No legacy torus-knot / dodecahedron solids visible (replaced by wireframe neural core + cube data-nodes per spec).",
+    "Wrong-password POST stays on /login (toast emitted; URL unchanged) ✓.",
+    "admin@projexino.com / Projexino@2026 → /app/dashboard ✓.",
+    "Team page (/app/team) → Interns tab: [data-testid=add-intern-btn] count=0, [data-testid=add-intern-hint] count=1 — exactly as spec.",
+    "HR module (/app/hr) → [data-testid=hr-tab-interns] present and clicking it shows InternsBoard with [data-testid=add-intern-btn] count=1, [data-testid=add-intern-hint] count=0. Clicking the button opens [data-testid=intern-modal] ✓.",
+    "Settings 5-tab regression: Gmail, Email Templates, Notifications, AI Settings, Notif. Permissions all rendered ✓.",
+    "Backend _build_invoice_pdf with 7-digit total (₹1,234,567.89): pdfplumber-extracted 'TOTAL DUE' line contains the full amount string on a single line (no break) ✓.",
+    "Backend _build_invoice_pdf with 8-digit total (₹12,345,678.90): also single-line ✓.",
+    "Backend _build_invoice_pdf — first page contains either embedded logo image (RLImage) OR the 'PROJEXINO' bold-text fallback. Both paths exercised, logo space is allocated either way ✓.",
+    "Backend invoice metadata: invoice_no, client name, and amount string all appear in extracted text ✓."
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter38_polish.py",
+    "/app/test_reports/pytest/iter38_polish.xml"
+  ],
+  "action_items": [
+    "Investigate intern role-routing regression: intern@projexino.com is being routed to /app/dashboard instead of /intern. Check Login.jsx routing logic (the iter37 report flagged this same area on line 108) — likely the role-from-localStorage fallback now defaults to /app for the intern. Quick fix: derive role from the login() return value rather than reading pj_role JSON afterwards."
+  ],
+  "critical_code_review_comments": [
+    "Login.jsx: role-routing still tightly coupled to pj_role localStorage entry — see iter37 review comment. Today's run shows the symptom (intern → /app/dashboard).",
+    "finance.py:_build_invoice_pdf is 600+ lines in one function — readable but a refactor into _brand_band / _totals_card / _items_table sub-builders would help future maintenance.",
+    "Team.jsx + HRModule.jsx now share InternsBoard via canCreate prop — clean & DRY ✓. Hint chip in Team page reads 'Add from HR → Interns' which matches the new HR tab — copy is consistent."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter38_polish.py (new)"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "~95% (intern role-routing regression)"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 (works, lands /app/dashboard), intern@projexino.com / Intern@2026 (works but lands /app/dashboard instead of /intern — see action_items).",
+  "seed_data_creation": "None — invoice PDF tests are unit-level against the _build_invoice_pdf helper with TEST_QA_ dummy data, no DB writes.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 3 polish items ship-ready. Phase C (Documents upload) and Phase D (Clients module) still pending and untested. The only follow-up is the intern-routing regression — small fix in Login.jsx most likely. Backend invoice helper is solid: re-run test_iter38_polish.py after any finance.py change.",
+  "rca of the issue": "Intern routing regression: previously (iter37) intern@projexino.com → /intern, now → /app/dashboard. Login.jsx reads pj_role from localStorage AFTER login() resolves; AuthContext.login may now store the intern role under a different key (e.g. pj_user.role) so the JSON.parse fallback fires and the router defaults to /app/dashboard. Reproduction: clear localStorage, post-login intern creds, observe location.href. Mitigation: have AuthContext.login() return {user} and derive `const isIntern = user.role === 'intern'` directly from the return value before navigating — no localStorage round-trip."
+}

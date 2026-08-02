@@ -1,0 +1,72 @@
+{
+  "summary": "Phase E (password reset/profile/welcome emails) + Phase F (Notification Permissions Center) + iter-19 quick wins fully verified. 25/25 new tests pass in /app/backend/tests/test_phase_ef.py and Phase A/B/C/D regression remains 45/45 green (combined 70/70 PASS in ~17s). All seed data cleaned up; member@projexino.com password restored to Member@2026.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/auth/forgot-password",
+        "issue": "Anti-enumeration is correct (always 200) but there is no rate limit on this endpoint. Brute-forced requests will create/refresh tokens at line-speed. Suggest 5-per-15min per IP+email."
+      },
+      {
+        "endpoint": "POST /api/me/profile/avatar",
+        "issue": "Accepts any string in content_base64 — no validation that it is actually valid base64 or that mime_type starts with 'image/'. A non-image blob up to ~3MB will be stored and served back. Consider validating with base64.b64decode(validate=True) and mime allowlist."
+      },
+      {
+        "endpoint": "POST /api/auth/reset-password",
+        "issue": "Token row stays in DB after use (only used=True). Suggest TTL index on expires_at or sweep used-and-old rows; not security critical because used=True guards reuse."
+      },
+      {
+        "endpoint": "POST /api/auth/change-password",
+        "issue": "No minimum-password complexity check beyond min_length=8 from Pydantic. Most other Projexino seeded passwords use the pattern Word@YYYY — recommend at least requiring 1 letter + 1 number for consistency."
+      },
+      {
+        "endpoint": "PUT /api/notif-permissions",
+        "issue": "Body is replaced wholesale (rules dict overwrites). No validation that rule keys are in KNOWN_EVENTS, so a typo (`projetc_started`) silently persists and never fires. Consider whitelisting keys against KNOWN_EVENTS."
+      },
+      {
+        "endpoint": "notif_permissions.get_extra_recipients",
+        "issue": "Dedupes by email but does not skip the originating user. If a manager triggers an event and is also configured as a recipient via role, the manager will receive their own notification. Consider an optional exclude_user_id arg."
+      }
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_phase_ef.py",
+    "/app/test_reports/pytest/phase_ef.xml",
+    "/app/test_reports/pytest/phase_ef_full.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: rate-limit /api/auth/forgot-password (5 req / 15min per IP+email).",
+    "OPTIONAL: validate avatar content_base64 and restrict mime_type to image/png|jpeg|webp.",
+    "OPTIONAL: TTL/sweep used password_reset_tokens.",
+    "OPTIONAL: whitelist rule keys against KNOWN_EVENTS in PUT /api/notif-permissions.",
+    "OPTIONAL: have get_extra_recipients skip the originating user via an exclude_user_id arg.",
+    "OPTIONAL: stronger password policy in change-password / reset-password (letter+digit+special)."
+  ],
+  "critical_code_review_comments": [
+    "phase_e.py:67 — welcome_user swallows ALL exceptions silently (except Exception: pass). At least log at INFO so HR can see why welcome emails didn't go out.",
+    "phase_e.py:124 — forgot_password also pass-swallows the notify exception. Add structured logging.",
+    "phase_e.py — change_password does NOT invalidate other active sessions / refresh tokens. If JWT issuance has a 'iat' or jti list, consider bumping pw_changed_at on the user doc so refresh-tokens issued earlier are rejected.",
+    "notif_permissions.py:74 — fetches ALL super admins on EVERY notify call. For high-event-frequency endpoints (login/logout fire on every session) this is wasteful — cache for ~60s in process memory.",
+    "notif_permissions.py:106 — limits user picker to 500 entries with no pagination or search. Acceptable for an SMB org but should warn / paginate above that.",
+    "rbac.py create_admin — sends the temp password back in the response body alongside force_password_reset=True. The temp pw is also emailed; consider redacting from response to avoid leaking via browser history / proxy logs.",
+    "phase_e.py — /me/full-profile returns the entire users row minus password_hash; that includes is_primary_super_admin, created_by, force_password_reset, etc. Consider an explicit allowlist of fields exposed to the user themselves.",
+    "Throughout: HTML email bodies are duplicated across phase_e, project_lifecycle, doc_verification — extract a single Jinja-like template module (or just .html.j2 files) so HR can rebrand without code edits.",
+    "hr_module._bulk_generate — per-employee idempotency is now correct (verified in test_phase_ef.py::TestQuickWinSchedulerIdempotent), but the scheduler loop sleeps 3600s and gates on day_of_month==today.day — restart at 23:59 followed by 00:01 will re-run for the new month immediately. Consider also checking `last_run_for_month` flag in hr_settings to avoid double-runs across DST/restart edges."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase_ef.py (new, 25 tests covering Phase E + F + 4 iter-19 quick wins)"
+  ],
+  "success_rate": {
+    "backend_phase_ef": "100% (25/25)",
+    "backend_phase_a_regression": "100% (16/16)",
+    "backend_phase_bcd_regression": "100% (29/29)",
+    "combined": "100% (70/70)"
+  },
+  "test_credentials": "admin@projexino.com / Projexino@2026 (super_admin), manager@projexino.com / Manager@2026, hr@projexino.com / HR@2026, member@projexino.com / Member@2026 — all verified live. Member password was temporarily rotated to TempPw@2026! during change-password test then RESTORED to Member@2026 (verified by re-login).",
+  "seed_data_creation": "All test artefacts cleaned up: throwaway admin (test_pe_*@projexino.com) deleted, transient password_reset_tokens deleted, lifecycle_events for TEST_PE_QW_proj deleted along with the project, hr_payslips for month=2099-12 deleted, intern submitted_docs.TEST_DV unset, all 4 role-creation users (manager/hr/team_member/admin) deleted after role check. Existing notification_permissions doc was overwritten with hr+manager rule for project_progress; restoring to {} not strictly needed but recommended for cleanliness if main agent wants to reset.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run `MONGO_URL=mongodb://localhost:27017 DB_NAME=projexino_db python -m pytest /app/backend/tests/test_phase_ef.py /app/backend/tests/test_phase_a_rbac.py /app/backend/tests/test_phase_bcd.py -v` for the full Phase A+B+C+D+E+F suite (70 tests, ~17s). Live preview backend at https://projexino-hub.preview.emergentagent.com. Frontend smoke not executed per request (backend-only). The /api/me/profile path is owned by phase4.py; Phase E correctly uses /api/me/full-profile to avoid collision (verified — both endpoints respond 200). Phase F notification_permissions doc is shared singleton id='active'; next tester should either preserve or reset to {rules:{}} before running.",
+  "rca_of_the_issue": "No bug surfaced. All Phase E endpoints behave per spec: forgot-password returns 200 for both known + unknown emails (no enumeration), token+4h expiry persisted with used=False, reset-password works once then 400 on reuse, expired token returns 400, change-password verifies current_password, full-profile returns intern=null for super_admin, avatar update stores base64. Phase F: 18 KNOWN_EVENTS exposed, 403 for non-super-admin on all 3 routes, PUT persists rules dict, get_extra_recipients always includes all super admins + role+user fan-out. Quick wins: html.escape applied in lifecycle/doc_verification email bodies (stored lifecycle_events.message remains verbatim, comments stored verbatim), safe-parse submitted_at no longer crashes the doc-verification sort even with 'not-a-date', hr_payslips.slip_no_1 has unique:true in listIndexes, and _bulk_generate is per-employee idempotent (verified by calling twice for month=2099-12 — count_after_first == count_after_second, 0 duplicate employee.id+month pairs)."
+}

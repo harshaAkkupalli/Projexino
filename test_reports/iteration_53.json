@@ -1,0 +1,30 @@
+{
+  "summary": "HR Letters module — verified both bug fixes and full regression. (1) trim_canvas mobile crash: FIXED — portal /app/hr-letters signing and public /sign/:token both submit successfully with no 'trim_canvas__WEBPACK_IMPORTED_MODULE_9__ is not a function' console error; signature persists as data:image/png dataURL on the letter's signature_blocks. (2) Projexino logo PDF letterhead: FIXED — PDF renders at 86KB (>30KB threshold), magic bytes %PDF-1.7, correct Content-Type + attachment header, and live editor preview shows the actual <img src=customer-assets.emergentagent.com/.../projexino-scaled> instead of text 'PROJEXINO'. All backend regression tests pass (CRUD, sign-token, expired/reused → 410, invalid → 404, invalid payload → 400, auth required → 401/403).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_hr_letters_iter53.py",
+    "/app/test_reports/pytest/iter53_hr_letters.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "hr_letters_module.py `public_sign` (line ~275): when block_id is empty string, the for/else appends a NEW 'Signer' block instead of updating an existing one. This is by design for external signers, but if `sign-token` is created with block_id='' (as the QR modal in HrLetters.jsx does when calling requestQR before a specific block is chosen), the signature won't land on the intended candidate/HR block — it creates a third 'Signer' block. Consider validating block_id at token creation time or in the frontend `requestQR(block)` — currently it passes block.id correctly, so this only affects manual/API-created tokens. Low priority.",
+    "PDF endpoint fetches LOGO_URL from remote customer-assets.emergentagent.com on every render — adds ~200-500ms latency and could fail if that CDN is unreachable. Consider caching the image bytes in-process or embedding as base64 data URI in _brand_html.",
+    "hr_letters_module.py line 249 has a hardcoded fallback `https://projexino-hub.preview.emergentagent.com` for PUBLIC_BASE_URL — violates the 'no hardcoded URLs' rule. Prefer failing fast if neither PUBLIC_BASE_URL nor FRONTEND_BASE_URL is set.",
+    "SignatureCanvas library react-signature-canvas@1.1.0-alpha.2 is an alpha with a known broken getTrimmedCanvas — the toDataURL workaround is correct, but consider pinning to a stable release (^1.0.6) or forking. If PDF signature quality matters, add whitespace-trim on the backend using PIL instead."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_hr_letters_iter53.py (created)"
+  ],
+  "success_rate": { "backend": "100% (11/11)", "frontend": "100% (portal sign + mobile sign + logo preview all verified)" },
+  "test_credentials": "admin@projexino.com / Projexino@2026",
+  "seed_data_creation": "Each test creates its own TEST_-prefixed letter and deletes it in teardown. No stale data left behind.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The HR Letters module is at /api/hr/letters (auth: super_admin/admin/hr/manager) with public sign endpoints at /api/public/hr-letters/sign/{token}. The pytest suite /app/backend/tests/test_hr_letters_iter53.py covers CRUD, sign-token flow, expired/reused/invalid token errors, and PDF magic-bytes+size. When testing mobile signature drawing in Playwright, `page.mouse.*` does NOT trigger the react-signature-canvas listener on the touch-configured canvas — you must dispatch PointerEvent + MouseEvent directly via page.evaluate as demonstrated in this iteration (canvas.dispatchEvent(new PointerEvent('pointerdown', {pointerType:'touch', clientX, clientY, isPrimary:true, buttons:1}))). Auth in this app uses httpOnly cookies (not localStorage tokens) — use `credentials:'include'` in fetch calls, not Authorization headers, when scripting from the browser context.",
+  "rca of the issue": "Bug #1 root cause was react-signature-canvas@1.1.0-alpha.2 shipping a broken ESM export of trim-canvas — calling padRef.current.getTrimmedCanvas() throws 'trim_canvas__WEBPACK_IMPORTED_MODULE_9__ is not a function' on mobile Chrome/Safari. Fix: replaced both call sites (HrLetterSign.jsx line 58, portal/HrLetters.jsx SigBlock.commit line ~297) with padRef.current.toDataURL('image/png') which uses the full canvas — transparent background means the untrimmed whitespace is invisible in the PDF sig line. Bug #2 root cause was _brand_html rendering text 'PROJEXINO' instead of the logo image. Fix: added LOGO_URL constant + <img class='logo-img' src={LOGO_URL}> in header, plus recipient block, address footer, and REF pill. Frontend live preview was updated in the same shape so what-you-see matches what-you-get."
+}

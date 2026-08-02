@@ -1,0 +1,44 @@
+{
+  "summary": "Iter 52 Testimonials module — full backend coverage + targeted UI smoke. 19/19 pytest cases pass (admin CRUD, requests, public submit, video stream, path-traversal rejection, analytics, auth gating). Reminder background loop registered & running with no startup exceptions. Frontend admin Hub renders all 3 tabs + 8 stat cards, public /testimonials page has filters + JSON-LD, ClientsHub Testimonials tab lazy-loads correctly, invalid-token UI renders, /app/leads regression intact, homepage carousel correctly hides when zero approved items exist (returns null gracefully).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/testimonial-requests/*/remind", "issue": "Gmail OAuth client is reported deleted in env (RefreshError: deleted_client). Manual reminder returns 200 with ok:false. Acceptable per agent context note, but Gmail reconnect is needed for prod usage."},
+      {"endpoint": "/api/testimonials (admin POST)", "issue": "Accepts arbitrary status (e.g. 'approved') from client on create — could let admin shortcut the approval audit trail. Currently low risk since route is PRIV-only."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "TestimonialsHub — Add modal", "issue": "Testid contract mismatch vs review-request spec. Implementation uses `new-rating`, `new-message`, `new-save`, `new-status` instead of `tm-add-name` / `tm-add-message` / `tm-add-rating-{1..5}` / `tm-add-save`. No `new-name`/`tm-add-name` testid was found for the client-name field — automated tests cannot target it deterministically.", "selector": "[data-testid='tm-add-cta']", "priority": "MEDIUM"},
+      {"component": "TestimonialsHub — Request modal", "issue": "Missing the spec'd `req-name` and `req-email` testids on the client-name / email inputs. They use the generic Field component with internal testids not exposed at the modal level.", "selector": "[data-testid='tm-request-cta']", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_testimonials.py",
+    "/app/test_reports/pytest/iter52_testimonials.xml"
+  ],
+  "action_items": [
+    "Align Add-testimonial modal testids with spec: add `tm-add-name`, `tm-add-message`, `tm-add-save`, `tm-add-rating-1..5` (or rename existing `new-*` set).",
+    "Add `req-name` and `req-email` testids on the inputs inside the Request feedback modal so automated tests can fill them deterministically.",
+    "Consider rejecting non-pending `status` values on POST /api/testimonials (force pending on manual create) to preserve the approval audit trail.",
+    "Reconnect Gmail OAuth (deleted_client error) so testimonial-request emails + auto reminders actually fire in prod."
+  ],
+  "critical_code_review_comments": [
+    "testimonials_module.py:_build_email_body declares return type tuple[str,str] but returns 3-tuple (title, body, link) — type hint is inaccurate; harmless but should be `tuple[str,str,str]`.",
+    "POST /api/testimonials trusts client-supplied `status` field — could bypass admin approval flow. Force status='pending' on manual create.",
+    "MAX_VIDEO_MB=200 is generous; spec says 3-min cap but client-side MediaRecorder enforces that. Backend has only size guard. Consider adding ffprobe duration check or trusting the size cap.",
+    "video file deletion on testimonial delete is best-effort (silent except) — orphan files may accumulate under /app/uploads/testimonials over time."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_testimonials.py (NEW)"
+  ],
+  "success_rate": {"backend": "100% (19/19)", "frontend": "~85% — tabs/filters/public/nested hub/regression all OK; Add+Request modal field testids mismatch"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Tests create + clean up TEST_-prefixed testimonials and a TEST_RequestUser feedback request (with a small synthetic .webm upload that gets fetched back via /api/uploads/testimonials/<file> and then deleted).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend testimonials suite is /app/backend/tests/test_testimonials.py — run via `pytest backend/tests/test_testimonials.py -v`. All 19 cases pass. If main agent renames Add/Request modal testids to match spec (tm-add-name, tm-add-message, tm-add-save, tm-add-rating-N, req-name, req-email), re-run frontend smoke to validate end-to-end UI flow. Homepage carousel currently hides because there are 0 approved items after cleanup — to test carousel-prev/next/dot/see-all UI, seed at least 2 approved testimonials first.",
+  "rca of the issue": "Add and Request modal field testids in /app/frontend/src/pages/portal/TestimonialsHub.jsx were authored as `new-*` and via a generic Field component, drifting from the `tm-add-*` / `req-name` / `req-email` naming contract documented in the iter 52 spec. No functional impact — the buttons themselves work in the UI — but it blocks deterministic automated UI tests. Fix is a pure rename/test-id-attribute addition."
+}

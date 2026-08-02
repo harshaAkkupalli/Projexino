@@ -1,0 +1,36 @@
+{
+  "summary": "Iter65 — Full backend + frontend testing of Digi's new Template Studio and manual (no-AI) paths for Strategy + Content. Backend: 7/7 pytest cases pass (POST /api/digi/content manual with source=manual; POST /api/digi/creatives/save with engine=template_studio_v1; PUT /api/digi/clients/{id}/strategies with source=manual; validations for missing body, unknown client 404, non-svg 400, oversize svg 400). Frontend: Template Studio renders under digi-nav-studio, live preview updates on headline (data-uri src changes), all 6 templates (announcement/promo/quote/hiring/event/tip) render non-broken previews (SVG len 2955–3614), badge input hidden on quote (count=0) and shown on promo (count=1), Story size aspect-ratio=1080/1920, Banner=1200/628, primary color change updates preview when triggered via React native value setter (contains new hex #00ff88 in data-uri), promo badge 'MEGA 50% OFF' fits inside the circle. Save to library → toast 'Saved to creatives library' + creative appears in Creative AI tab grid with digi-creative-dl-* download button (dl button count went from 2→4 after saves). Download PNG dispatches a real browser download with filename 'announcement-1080x1080.png' via canvas.toBlob path. Content-AI manual form: title+body saved, toast 'Content saved (manual)', new card contains the body text ('TEST_iter65 manual body text via UI Playwright.'). Strategy-AI manual form: prefilled with existing exec_summary (32 chars from prior test data), edit + save → toast 'Strategy saved (manual)', strategy cards re-render with new summary. Regression: digi-content-manual + digi-content-generate both present on Content tab, digi-strategy-generate still present on Strategy tab; Calendar/Approvals/Performance tabs render without errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter65_digi_manual_studio.py",
+    "/app/test_reports/pytest/iter65_results.xml"
+  ],
+  "action_items": [
+    "(Not caused by this iteration) React console warning on every /app/digi page load: 'In HTML, <span> cannot be a child of <option>. This will cause a hydration error.' Root cause is the visual-editor instrumentation (data-ve-dynamic / x-* attrs) wrapping option content with a <span style=\"display:contents\">. Affects the ClientPicker <select> in Digi.jsx (~L872). Consider excluding option children from ve-instrumentation or rendering client name as a static string inside option to suppress the warning."
+  ],
+  "critical_code_review_comments": [
+    "DigiTemplateStudio.jsx:184 downloadSvgAsPng calls URL.createObjectURL for both svg blob and png blob but only revokes them via setTimeout(5000) / immediate revoke on img load — the png object URL is created inside canvas.toBlob callback and then revoked 5s later, which is fine. However, if img.onerror fires the toast but never revokes the a.href — minor memory concern only.",
+    "DigiTemplateStudio.jsx:216 useEffect depends on [selectedId, clients] — every time `clients` list ref changes (parent refresh), the brand-kit fetch fires again and can overwrite the user's manually-tweaked palette. Consider gating with a ref or comparing selectedId strictly.",
+    "Digi.jsx ContentPanel manual form (line 566) — the manual form only shows title+body+kind+platform+hashtags+cta but the AI form has topic/goal/tone/kind/platform on top. When the user toggles manual off/on the states are separate (mf vs form) which is correct; no state leakage. Good.",
+    "Digi.jsx StrategyPanel `openManual` prefill mapping is correct for existing strategies; if strategies is empty (client has no strategy yet) the form opens with empty fields — good UX. saveManual constructs merged strategies via spread, so unrelated nested keys are preserved. Good.",
+    "digi_module.py POST /digi/content silently accepts any hashtags shape (string or list). Fine. But it doesn't validate client_id existence — a malformed client_id string still creates a content row. Minor: consider verifying client exists (already done in strategies endpoint).",
+    "digi_module.py PUT /digi/clients/{rid}/strategies has a lenient fallback: `strategies = payload.get('strategies') if isinstance(payload.get('strategies'), dict) else payload`. If a client sends `{strategies: null}` it silently persists `{strategies: null}` as the strategies object (which itself is a dict with one key). Not a critical bug — the frontend never sends this — but consider tightening.",
+    "digi_module.py POST /digi/creatives/save enforces svg starts with '<svg' and length<=500_000 — good. It base64-encodes and stores in Mongo doc; at 500KB base64 that's ~680KB per document which is within Mongo's 16MB limit but may bloat digi_creatives. Consider file storage if volume grows.",
+    "Console hydration warning at every Digi page mount is noisy in dev; not caused by this iteration."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter65_digi_manual_studio.py (NEW — 7 backend tests, all passing)"
+  ],
+  "success_rate": {"backend": "100% (7/7 pytest)", "frontend": "100% (Studio, Content-manual, Strategy-manual, downloads, save-to-library, regressions all verified)"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 (super_admin, /app/memory/test_credentials.md)",
+  "seed_data_creation": "Backend tests use existing digi client (cb85aff45e9c44a4b556937a2c938a57 = 'QA Test Brand UI 46') and clean up their own content+creatives via DELETE. Persistent side-effects from UI runs: (1) 2 template-studio creatives (announcement + templates with headline 'TEST_iter65 headline change' / 'Something big is here') visible in Creative AI grid; (2) one manual content draft titled 'TEST_iter65 manual UI content' with body 'TEST_iter65 manual body text via UI Playwright.'; (3) strategy for that client overwritten to executive_summary='TEST_iter65 UI edited exec summary — smart & short.' — main agent may want to reset via digi_seed if needed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 3 new backend endpoints (POST /api/digi/content, PUT /api/digi/clients/{id}/strategies, POST /api/digi/creatives/save) and both new UI flows (Template Studio + Manual buttons on Strategy/Content) are working end-to-end. The only lingering console noise is a React hydration warning caused by ve-instrumentation wrapping option content — pre-existing tooling artifact, not blocking. Existing digi client used for tests: id=cb85aff45e9c44a4b556937a2c938a57 (name 'QA Test Brand UI 46'). Test file: /app/backend/tests/test_iter65_digi_manual_studio.py can be re-run for regression. AI generate endpoints were NOT invoked per instructions (LLM budget low).",
+  "rca of the issue": "No blocking bugs found. Minor Playwright note: React color <input type='color'> is a controlled input; setting el.value + dispatchEvent('input') from generic JS doesn't reach React's onChange (React tracks the last set value); must use `Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el, value)` before dispatch. Real user clicks on the native color picker work fine — this is a testing-script-only artifact."
+}

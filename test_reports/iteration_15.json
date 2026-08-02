@@ -1,0 +1,101 @@
+{
+  "summary": "Iteration 15 — Verified (1) WebRTC calling fully REMOVED, (2) Auth-events login/logout logging, (3) Presence (heartbeat/status whitelist/me/notice-ack/admin endpoints/stats/hours), (4) Email Campaigns CRUD + scheduling + immediate-send (no-Gmail → failed) + AI draft. Created /app/backend/tests/test_iter15_presence_email.py (36 tests, 4 classes). Result: 35/36 PASS, 1 FAIL on a spec-deviation in role-gating for /api/admin/presence/hours.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/admin/presence/hours",
+        "issue": "Spec says 'admin only' but implementation uses the shared _require_priv() which allows admin/manager/hr. Manager logged in receives 200 instead of 403. Either tighten _require_priv to admin-only for this route (recommended per the review request) or amend the spec.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/email/campaigns",
+        "issue": "scheduled_at parsing accepts 'YYYY-MM-DDTHH:mm' by appending ':00' BEFORE the fromisoformat call, but if the string is exactly 16 chars like '2030-01-01T00:00' it works; longer ISO strings with timezone go through unmodified. Edge cases (e.g. 'T' present but length 17) may slip into fromisoformat — works for valid ISO but worth a unit test."
+      },
+      {
+        "endpoint": "POST /api/email/campaigns (immediate send_now=true)",
+        "issue": "When send_now=true is passed (no scheduled_at), status=sending is set immediately and a runner task is created. If Gmail is not connected, runner sets status='failed' (verified). However the create response returns status='sending' before the runner finishes — frontend must poll. Documented behaviour, not a bug."
+      },
+      {
+        "endpoint": "/api/email/campaigns/ai-draft",
+        "issue": "Returns 500 'AI not configured' when EMERGENT_LLM_KEY missing — but spec says it should rely on env. Verified env is set and AI draft succeeded with valid subject+body_html."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "note": "Frontend smoke test could not be executed: the preview environment displayed the 'Ready to start your preview / Wake up servers' interstitial and the React app never mounted. Backend behind the same URL is fully reachable (all 35 backend HTTP tests pass against REACT_APP_BACKEND_URL). Main agent should re-run frontend verification once the preview is awake; the Presence.jsx, EmailCampaigns.jsx, PresenceWidget.jsx and nav files were not exercised in a browser this iteration."
+  },
+  "verification_results": {
+    "calls_removed": {
+      "POST /api/calls → 404": "PASS",
+      "GET /api/calls/incoming → 404": "PASS",
+      "GET /api/calls/{id} → 404": "PASS"
+    },
+    "auth_events": {
+      "POST /api/auth/login logs 'login' kind (member visible to admin)": "PASS",
+      "POST /api/auth/logout logs 'logout' kind (intern visible to admin)": "PASS",
+      "/api/admin/auth-events member 403": "PASS",
+      "/api/admin/auth-events/summary?period=day": "PASS (returns array with date/logins/logouts)",
+      "/api/admin/auth-events/summary?period=month": "PASS"
+    },
+    "presence": {
+      "POST /api/presence/heartbeat → {ok, online:true, status}": "PASS",
+      "POST /api/presence/status status='online'": "PASS",
+      "POST /api/presence/status status='on_break'": "PASS",
+      "POST /api/presence/status status in [offline, working, available, OOO, ''] → 400": "PASS (all 5 rejected)",
+      "GET /api/presence/me → allowed_statuses=['online','on_break'], notice_shown present": "PASS",
+      "POST /api/presence/notice-ack persists notice_shown=true": "PASS",
+      "GET /api/admin/presence admin/manager/hr 200, member/intern 403": "PASS",
+      "GET /api/admin/presence/stats returns total_users, online_now, by_status, logins_today": "PASS",
+      "GET /api/admin/presence/hours admin 200 with required fields": "PASS",
+      "GET /api/admin/presence/hours manager 403 (admin-only per spec)": "FAIL — got 200"
+    },
+    "email_campaigns": {
+      "POST /api/email/campaigns with emails:[…] → status='draft'": "PASS",
+      "GET list + GET by id": "PASS",
+      "POST with no recipients → 400": "PASS",
+      "include_all_employees:true → recipients ≥ 4 with @projexino.com": "PASS",
+      "include_all_clients:true → accepts (200 or 400 if none)": "PASS",
+      "Intern POST/GET → 403": "PASS",
+      "scheduled_at='2030-01-01T00:00:00+00:00' → status='scheduled'": "PASS",
+      "scheduled_at='not-a-date' → 400": "PASS",
+      "Send immediate → status transitions to 'failed' with error='Gmail not connected' (polled)": "PASS",
+      "POST /ai-draft returns {subject:str, body_html:str} (EMERGENT_LLM_KEY)": "PASS"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter15_presence_email.py",
+    "/app/test_reports/pytest/iter15_results.xml"
+  ],
+  "action_items": [
+    "[HIGH] Tighten GET /api/admin/presence/hours to admin-only (current code uses _require_priv() which permits admin/manager/hr). Fix presence.py around line 268: replace `_require_priv(user)` with `if user.get('role') != 'admin': raise HTTPException(403, 'Forbidden')`.",
+    "[INFO] Frontend smoke test could not run because the preview displayed the 'Wake up servers' interstitial. After waking the preview, main agent should self-verify: (a) admin can open /app/presence and /app/email-campaigns, (b) top-bar PresenceWidget exposes only Online/On Break, (c) intern sees 'restricted' card on both routes."
+  ],
+  "critical_code_review_comments": [
+    "presence.py is well-structured (337 lines). One concern: /admin/presence/hours uses the same _require_priv helper as /admin/presence — these should likely diverge per spec (hours = admin only).",
+    "email_campaigns.py _run_campaign catches exceptions per recipient and stores raw exception string into deliveries[].error (truncated to 300 chars) — fine, but the campaign-level 'error' field set in the no-token branch only writes when Gmail is missing. Other failure modes (token refresh fail, service build fail) propagate up and would leave the campaign stuck in 'sending'. Wrap _resolve_send_token + _refresh_if_needed + _build_gmail_service in a single try/except that sets status='failed' with the captured error.",
+    "email_campaigns.py /email/campaigns/{id}/send returns immediately even when total_recipients=0 (impossible because create enforces recipients, but a campaign whose recipients list was emptied by re-resolving wouldn't be guarded). Cheap defense: short-circuit to status='sent' with delivered=0 in that case.",
+    "_run_campaign awaits asyncio.sleep(0.4) between recipients — fine for small batches, but for 1000+ recipients this blocks the loop for ~6 minutes. Consider semaphore-bounded concurrency (e.g. asyncio.Semaphore(5)) instead of strict serial throttling.",
+    "email_campaigns.py ai_draft response.split('```',2)[1] then strips 'json' prefix — fragile parser. emergentintegrations may already return clean JSON; consider try/except around json.loads(raw) directly with a fallback to the markdown-stripping path.",
+    "server.py logout handler catches all exceptions silently (try/except: pass) around log_auth_event — masks observability. At minimum logger.warning the failure.",
+    "server.py login does the same try/except: pass around presence.log_auth_event — same concern.",
+    "presence.py /admin/presence/hours never closes 'dangling logins' that lie before the lookback window — a user who logged in 2 days ago and never logged out will have no row when period='day'. The code pairs login→logout within the window only. Acceptable for the requirement but document this."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter15_presence_email.py"
+  ],
+  "success_rate": {
+    "backend": "97% (35/36)",
+    "frontend": "n/a — preview was asleep (Wake-up-servers gate); not executed"
+  },
+  "test_credentials": "admin/manager/hr/member/intern @projexino.com from /app/memory/test_credentials.md — all login OK",
+  "seed_data_creation": "Created several TEST_ITER15_* email campaigns and deleted them at end of run. The 'send-now' campaign with status='failed' may persist if the cleanup delete failed for it — non-blocking.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend is green except for the role-gating mismatch on /api/admin/presence/hours. After main agent tightens that endpoint to admin-only, re-run `pytest backend/tests/test_iter15_presence_email.py::TestPresence::test_admin_presence_hours_admin_only -v` to confirm. Frontend smoke test was not run because the preview was at the 'Wake up servers' splash page — once awake, the playwright script in this iteration can be re-used. Calls module is verifiably removed (3 routes return 404). Email-campaigns immediate send transitions correctly to status='failed' with error='Gmail not connected' within ~2s in the test environment.",
+  "rca_of_the_issue": "FAIL on test_admin_presence_hours_admin_only — root cause: presence.py reuses _require_priv() (which allows admin/manager/hr) for /admin/presence/hours, but the iteration-15 spec lists this endpoint as admin-only. Mitigation: replace the helper call with an explicit admin-role check on lines ~262-268 of presence.py. Reproduction: login as manager, GET /api/admin/presence/hours → 200; expected 403."
+}

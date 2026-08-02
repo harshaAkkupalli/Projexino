@@ -1,0 +1,44 @@
+{
+  "summary": "Iteration 30 — Verified NEW Custom Company Profile PDF Upload feature (/api/xino/company-profile/info, .pdf, /upload-secured, DELETE) and regression-tested Phase 3/4/5. Backend: 10/10 PASS in test_iter30_company_pdf.py. Public Landing frontend smoke confirms hero/stats/CTA testids all render and reflect /api/website-config PATCH live (TEST_Headline_c2292d roundtrip verified, then reverted to 'Next-Generation'). FAQ items render correctly but use data-testid prefix 'landing-faq-{i}' NOT 'faq-{i}' as the review request asked — minor selector spec mismatch.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/xino/company-profile/upload-secured", "issue": "Permission gate accepts BOTH super_admin AND admin (see _require_super_admin at xino_ai.py:1034). Function name implies super_admin only; admin is also allowed. Document or rename if intentional."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Public Landing FAQ", "issue": "Review request expected data-testid 'faq-{i}' on FAQ items; actual implementation uses 'landing-faq-{i}'. Items render (6 found) and content comes from website-config — functionally fine, but selector contract differs from spec.", "affected_selectors": ["[data-testid=faq-0]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter30_company_pdf.py",
+    "/app/test_reports/pytest/iter30.xml"
+  ],
+  "action_items": [
+    "Main agent (optional): rename WebsiteConfig FAQ testid prefix from 'landing-faq-' to 'faq-' to match spec, or update spec doc.",
+    "Main agent (optional): clarify _require_super_admin() naming in xino_ai.py — it accepts admin too. If intent is super_admin only, tighten the check.",
+    "Main agent SELF-TEST (authenticated UI not automated due to known login automation friction): /app/website-config → 'Company Profile PDF' section: (a) upload field present with data-testid='ws-profile-upload', (b) after upload, info shows custom: true and 'ws-profile-remove' button appears, (c) ws-profile-download opens PDF, (d) Revert clears custom and refreshes info. The backend endpoints powering this are 100% verified.",
+    "Main agent SELF-TEST: /app/projects/{id} ProjectPipeline tiles render 7 stages with data-testid='pipeline-stage-{key}'; non-assignee sees locked state (covered by iter 29 backend test for 403 already).",
+    "Main agent SELF-TEST: /app/projects 'New Project' modal — cover_image upload then verify image appears on the resulting card."
+  ],
+  "critical_code_review_comments": [
+    "xino_ai.py:_require_super_admin — function name misleading; it allows role in ('super_admin','admin'). Either rename to _require_admin_or_super or tighten to super_admin only.",
+    "xino_ai.py:upload_company_profile_secured — no upper-bound on UploadFile.read() before the 12MB check; for very large files this still buffers the whole body in memory first. Consider streaming + size guard mid-stream for production hardening (not blocking for this iteration's 12MB cap).",
+    "xino_ai.py:company_profile_pdf — when custom PDF is missing the data_b64 field (corrupt doc), code falls through to the auto-generated PDF silently; consider logging a warning.",
+    "WebsiteConfig.jsx FAQ + Landing.jsx FAQ — testid prefix mismatch with review-request spec ('faq-' vs 'landing-faq-'). Trivial but worth aligning.",
+    "extensions.py:list_assignable_users — pre-existing finding from iter 29 still applies: super_admin excluded from upstream Mongo $in filter so it never appears in the 'managers' bucket regardless of post-filter."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter30_company_pdf.py (NEW — 10 tests: website-config public GET, super_admin PATCH headline persistence, company-profile info default, auto-PDF download, non-super-admin upload 403, non-PDF rejected 400, full upload→info→download-bytes-match→non-auth-delete-rejected→revert→auto-restore cycle, projects list shape, /assignable-users buckets, 7-stage pipeline keys)"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "Public landing fully verified; authenticated UI deferred to main-agent self-test (consistent with iter 28/29 precedent)."},
+  "test_credentials": "admin@projexino.com / Projexino@2026 (super_admin per /app/memory/test_credentials.md). Note: review-request listed 'superadmin@projexino.com' which does NOT exist — actual super_admin is admin@projexino.com.",
+  "seed_data_creation": "Test temporarily PATCHes hero.headline_1 to a TEST_Headline_<uuid> value, verifies it via GET, and a follow-up curl reverts it to 'Next-Generation'. The custom-PDF lifecycle test fully cleans up (DELETE at start and at end). No persistent test artifacts remain.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Custom Company Profile PDF endpoints (xino_ai.py lines 996-1071) are fully working and tested. Permission gate uses _require_super_admin() which actually accepts BOTH super_admin AND admin roles. Manager/intern get 403. Uploaded PDF bytes are stored base64 in db.xino_assets {id:'company_profile_pdf'} and returned verbatim on /api/xino/company-profile.pdf with correct Content-Type. DELETE reverts to auto-generated PDF (built by _build_company_profile_pdf at line 632). Info endpoint returns {custom, url, updated_at, size_kb}. Frontend uses ws-profile-upload / ws-profile-download / ws-profile-remove testids — backend is ready. Landing FAQ uses 'landing-faq-{i}' testid prefix not 'faq-{i}'.",
+  "rca of the issue": "No bugs found. Two minor naming concerns: (1) _require_super_admin permits admin role too — likely intentional but name is misleading; (2) FAQ testid prefix on Landing page is 'landing-faq-' not the 'faq-' spec stated in the review request — functional, just a contract mismatch."
+}

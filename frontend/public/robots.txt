@@ -1,0 +1,32 @@
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /app/
+Disallow: /m
+Disallow: /m/
+Disallow: /intern
+Disallow: /intern/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /invoice/
+Disallow: /api/
+
+# Allow major search engine bots full access to public site
+User-agent: Googlebot
+Allow: /
+Disallow: /app/
+Disallow: /m/
+Disallow: /intern/
+Disallow: /api/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /app/
+Disallow: /m/
+Disallow: /intern/
+Disallow: /api/
+
+Sitemap: https://www.projexino.com/sitemap.xml
+Sitemap: https://www.projexino.com/api/sitemap.xml

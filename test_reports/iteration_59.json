@@ -1,0 +1,39 @@
+{
+  "summary": "Iter59 VERIFIED — WeasyPrint base_url fix restores logo in both backend PDFs to iter57 baseline. Backend: 15/15 pytest passing across test_pdf_logo_iter59.py + test_static_assets_iter57.py. Contract PDF = 90,098 B with 2 /Image refs (was 21,792 B / 0 during iter58 regression). HR letter PDF = 111,750 B with 5 /Image refs (was 43,442 B / 3). Both PDFs retain all canonical text (Projexino Solutions Pvt Ltd, PJX-2026, Enterprise Q3 2026, Contract Value, § 1, § 2 in contract; Anita Sharma, Offer Letter in HR). NEW HR letter creation flow (POST → PATCH body → GET /pdf → DELETE) also embeds the logo (size ≥40KB, ≥1 /Image ref). ENV: PUBLIC_FRONTEND_URL=https://projexino-hub.preview.emergentagent.com present in backend/.env. DB singleton `/projexino-logo.png` preserved (iter58 migration intact). Frontend Playwright: /login → 0 CDN refs, all imgs loaded; HR letters preview (Anita Sharma) → 3 imgs (1 local logo + 2 signature data:image/png), 0 CDN refs; Letterhead modal → hrls-logo input reads '/projexino-logo.png' as persisted, 0 CDN refs. Removed the iter58 test file (test_hr_letters_logo_iter58.py) per main-agent instruction — it documented the regression which is now fixed, superseded by test_pdf_logo_iter59.py.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pdf_logo_iter59.py",
+    "/app/backend/tests/test_static_assets_iter57.py",
+    "/app/test_reports/pytest/iter59_pdf_logo.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix is minimal and canonical — one-line `base_url=` argument to weasyprint.HTML() in both hr_letters_module.py:343 and contracts_module.py:727. Uses PUBLIC_FRONTEND_URL with REACT_APP_BACKEND_URL fallback, so it degrades gracefully across environments.",
+    "Consider inlining the logo as base64 data-URL in the DB singleton (same as signature blocks) to make PDF rendering independent of frontend static-serve availability. Currently the backend re-fetches /projexino-logo.png over HTTPS on every PDF render — negligible latency but adds a runtime dependency.",
+    "The iter58 test file (test_hr_letters_logo_iter58.py) was removed since its assertions documented the now-fixed regression. Replacement suite is test_pdf_logo_iter59.py with correct expectations (>=60KB, >=2 imgs contract; >=60KB, >=4 imgs HR letter)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_pdf_logo_iter59.py (created)",
+    "/app/backend/tests/test_hr_letters_logo_iter58.py (removed — superseded)",
+    "/app/test_reports/pytest/iter59_pdf_logo.xml (generated)",
+    "/app/test_reports/iteration_59.json (this file)"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 across iter59 + iter57 static regression)",
+    "frontend": "100% (login + HR letters preview + Letterhead modal all show 0 CDN refs; hrls-logo persisted)"
+  },
+  "test_credentials": "admin@projexino.com / Projexino@2026 (super_admin) — from /app/memory/test_credentials.md",
+  "seed_data_creation": "Created one temporary HR letter for the new-letter PDF test and deleted it in finally block. No persistent data mutation.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter59 closes the WeasyPrint base_url regression from iter58. All iter57 (static assets + frontend zero-CDN) + iter58 (frontend HR letters zero-CDN + DB singleton migration) achievements are preserved AND both PDFs are back to iter57 baseline sizes. The full self-hosted-logo feature is now end-to-end complete: frontend serves local logo, DB singleton uses '/projexino-logo.png', and backend WeasyPrint resolves it via base_url. Next agent should keep test_pdf_logo_iter59.py + test_static_assets_iter57.py in the regression rotation.",
+  "rca of the issue": "N/A — iter59 was pure regression verification of main agent's fix. Fix summary: `pdf = HTML(string=..., base_url=os.environ.get('PUBLIC_FRONTEND_URL') or os.environ.get('REACT_APP_BACKEND_URL') or '').write_pdf()` in both hr_letters_module.py:343 and contracts_module.py:727. WeasyPrint now has an origin to resolve relative `/projexino-logo.png` src refs against, so the same-origin static PNG fetch succeeds and the logo XObject is embedded in the PDF."
+}

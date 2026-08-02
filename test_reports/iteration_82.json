@@ -1,0 +1,37 @@
+{
+  "summary": "Iter82 — HR Letters multi-page signature placement + Payslip authorised signatory. Backend pytest: 6/6 passed (multi-page stamping on page 2 with image, page 1 text-only, page=99 clamps to last page without 500, hide_placed=true returns unstamped base, intern 403 on signatory PUT, admin PUT persists, existing payslip PDF has NO 'Employee Signature', includes 'QA Signer' + 'HR Manager' and 2+ images, regression: sign-doc 'test' PDF 200, single-page letter still stamps on page 1). Frontend: HR Letters — 6 pages rendered for long-body letter, hrl-page-1..6 wrappers present, dragged chip onto hrl-page-2 landed correctly (verified DOM parent === hrl-page-2), Save PATCH succeeded and server verified x=30, y=49.9, page=2 persisted. Payslips — 7 Preview buttons present, click opens a new tab (browser opened tab; see UX note below), Configure modal renders hr-signatory-section with pad/use/clear/name/desig and hr-signatory-saved 'On file' badge (Priya on file), drawing + Use signature captures, Save + reopen persists name+designation+badge.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Payslip Preview button (openApiPdfInTab)", "issue": "window.open() is called AFTER an async api.get(..., blob) await — in strict popup-block browsers this loses the user gesture and returns null, showing a 'Popup blocked — allow popups for this site' toast. In our Chromium test a tab was opened but 'win' was still null (blocked). Real users on Chrome with default settings may hit this intermittently. Suggest: open the tab window BEFORE the fetch (window.open('about:blank') synchronously, then set win.location = objectURL after the blob is ready), or serve payslip PDFs via a signed GET URL that can be opened directly.", "affected_selectors": ["[data-testid^='hr-slip-preview-']"]},
+      {"flow": "HR Letters editor reload persistence via UI", "issue": "After browser reload the HR module lands on default Regulations tab (letter view is inside HR Module tab state, not URL-preserved). Not a functional bug — placement persistence was confirmed on the server (GET /api/hr/letters/{id} returned x=30, y=49.9, page=2). Just a navigation UX nit: consider syncing the active tab + open letter id into the URL so reloads preserve context.", "affected_selectors": []}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter82_letters_multipage_and_payslip_signatory.py",
+    "/app/test_reports/pytest/iter82.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Fix payslip Preview popup-block susceptibility in /app/frontend/src/lib/download.js openApiPdfInTab — open the window synchronously first, then navigate it to the blob URL once ready (avoids strict Chrome popup blocks after await).",
+    "OPTIONAL polish: Sync HR Module active tab + open letter id into URL query so a reload preserves the editor view."
+  ],
+  "critical_code_review_comments": [
+    "hr_letters_module.py::_stamp_letter_blocks correctly clamps out-of-range page to last page (max(1, min(pg, n))). Good.",
+    "hr_letters_module.py::_render_letter_pdf always renders base with hide_placed=True then stamps — clean separation.",
+    "HrLetters.jsx::InlinePlacement.pctFromEvent clamps x to 0-80 and y to 0-92 — matches backend constraints. Good.",
+    "download.js::openApiPdfInTab calls window.open AFTER await — vulnerable to popup blockers. Consider opening a blank tab synchronously before the fetch."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter82_letters_multipage_and_payslip_signatory.py (new)",
+    "/app/test_reports/iteration_82.json (new)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% (all critical UI flows verified — drag to page 2, save+persist verified via server, payslip preview opens tab, signatory config saves+reopens with On file)"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 (priv), intern@projexino.com / Intern@2026 (403 check) — from /app/memory/test_credentials.md",
+  "seed_data_creation": "Created temp letter 'TEST_UI_Iter82' with long multi-page body for UI test — DELETED after tests. Backend test also creates TEST_Iter82 Multi / TEST_Iter82 SinglePage letters that are auto-cleaned via fixture. Signatory RESTORED to Priya Sharma / HR Manager with a signature image on file (verified via GET /api/hr/payslip-config after cleanup).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iter82 backend pytest at /app/backend/tests/test_iter82_letters_multipage_and_payslip_signatory.py covers letters multi-page stamping (page-2 image + page-1 text + page-99 clamp + hide_placed=true), payslip signatory PUT/GET permission matrix, and existing-payslip PDF signatory presence. Frontend flow: HR Module → HR Letters tab → hrl-edit-{id} → hrl-placement-inline renders hrl-page-N wrappers; drag hrl-chip-{blockId} to hrl-page-2 works; DOM verification: `p2.contains(document.querySelector('[data-testid=hrl-placed-...]'))`. Payslips → hr-slip-preview-{slipNo} opens PDF in new tab (window.open after await — susceptible to popup-block). hr-payslip-cfg modal has hr-signatory-section with pad/use/clear/name/desig/saved. Signatory in DB: Priya Sharma / HR Manager / valid PNG data URL (restored). Note: HRModule tab state is component-local — reloading resets to Regulations, so URL-based UI persistence checks won't work; verify persistence via API instead.",
+  "rca of the issue": "N/A — all target flows working. Only nit: Preview popup can be blocked in strict browsers; RCA is that window.open() runs post-await, losing user-gesture. Simple fix suggested above."
+}

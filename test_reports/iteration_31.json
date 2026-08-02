@@ -1,0 +1,46 @@
+{
+  "summary": "Iter 31 — Tested (A) cross-role task/project notification deep-link bug fixes and (B) Outreach Group C Delivery 2/3 (Pipeline, Lead Drawer, Sequences, AI Writer, Reports, Score). Backend: 13/14 PASS in test_iter31_outreach_notif.py. All 5 bug-fix flows (A1–A5) work correctly with deep links `/app/tasks/{id}` and `/app/projects/{pid}`. Outreach lead CRUD, score field, pipeline_stage PATCH, /full timeline, /note, AI writer (Gemini via EMERGENT_LLM_KEY), and /reports all work. Frontend Outreach page renders all 5 tabs; Pipeline shows all 8 stages with correct data-testid prefix `pipeline-stage-{key}`; Reports has period/days testids; AI Writer has ai-generate. CRITICAL BUG: POST /api/outreach/sequences returns 422 'Field required: query.payload' because the Pydantic class `SequenceIn` is defined inside the `register_outreach()` closure — FastAPI cannot resolve nested-scope Pydantic classes as a request-body model, so it treats `payload` as a query parameter. This breaks Feature B3 (sequence creation) entirely from both backend curl/test and the UI. Additionally, the frontend `[data-testid='seq-new']` button was not found when the Sequences tab was clicked.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/outreach/sequences", "issue": "Returns 422 {loc: query.payload, missing}. Root cause: SequenceIn / SequenceStepIn Pydantic models are declared INSIDE the register_outreach() closure (outreach.py lines 782-790). FastAPI's introspection of forward refs / locally-scoped classes fails — it doesn't recognise SequenceIn as a BaseModel and silently demotes `payload` to a Query param. Fix: hoist SequenceIn / SequenceStepIn to module scope (top of outreach.py near LeadIn / LeadPatch), OR add explicit `payload: SequenceIn = Body(...)`. This blocks sequence creation entirely (Feature B3).", "priority": "CRITICAL"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Outreach SequencesTab", "issue": "After clicking the 'Sequences' tab, the expected `[data-testid='seq-new']` button is NOT found in the DOM. The tab renders (URL doesn't change and tab pill highlights) but the New-sequence CTA is missing or testid mismatched. Verify the component is mounted, that data-testid='seq-new' is present, and that the user has the right role-gating to see the CTA.", "selector": "[data-testid='seq-new']", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "Sequences create flow (Feature B3)", "issue": "Even if the seq-new button were clickable, the backend POST /api/outreach/sequences returns 422 (see backend critical). Both layers need fixing for B3 to work end-to-end.", "affected_selectors": ["[data-testid='seq-new']", "[data-testid='seq-save']"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter31_outreach_notif.py",
+    "/app/test_reports/pytest/iter31.xml"
+  ],
+  "action_items": [
+    "[CRITICAL] outreach.py: move class SequenceStepIn(BaseModel) and class SequenceIn(BaseModel) (currently lines 782-790 inside register_outreach) to module top-level so FastAPI can recognise them as body models. Alternative one-line fix: change `async def create_sequence(payload: SequenceIn, ...)` to `async def create_sequence(payload: SequenceIn = Body(...), ...)`.",
+    "[HIGH] Outreach.jsx SequencesTab: ensure data-testid='seq-new' is rendered on the 'New sequence' button and the tab content is mounted on tab switch. Confirm the tab is gated only on auth, not extra role checks.",
+    "Main agent SELF-TEST after fixes: from /app/outreach → Sequences tab → click seq-new → fill name 'Test Drip' (4 default steps prefilled) → click seq-save → expect seq-card-{id} to render, then seq-enroll-{id} button opens modal.",
+    "BUG fixes A1–A5 are fully working; no action needed there.",
+    "Features B1 (Pipeline 8 cols + PATCH), B2 (Lead drawer /full + /note), B4 (AI writer Gemini), B5 (Reports buckets), B6 (score field on leads) all verified working — no action needed."
+  ],
+  "critical_code_review_comments": [
+    "outreach.py:782-790 — Pydantic models inside a closure: FastAPI body-vs-query inference relies on inspecting the annotation; locally-scoped Pydantic classes can fall through to the 'simple type → query param' branch in some FastAPI/Pydantic v2 combinations. Move them to module scope as the canonical fix; this is also better for OpenAPI schema generation and IDE typing.",
+    "outreach.py:998 — AI writer wraps all exceptions in `raise HTTPException(502, f'AI writer failed: {str(e)[:200]}')`. This masks 400/401 from the LLM provider; consider preserving status codes for billing/quota failures.",
+    "outreach.py:823 enroll_in_sequence accepts `payload: Dict[str, Any] = Body(...)` — works because of explicit Body(...). Apply the same pattern to create_sequence to keep style consistent if not hoisting the model.",
+    "extensions.py pipeline PATCH — assignees field expects List[StageAssignee] (dicts), not list of user_id strings; intern self-service flow worked once assigned correctly. The error message on bad input is informative.",
+    "server.py tasks notifications — deep links `/app/tasks/{id}` and `/app/projects/{pid}` are consistently emitted across all three flows (A1, A2, A3, A5); good."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter31_outreach_notif.py (NEW — 14 tests: A1 task assignment deep link, A2 intern PATCH notifies admin, A3 admin PATCH notifies assignee, A4 mark read, A5 project stage update, B0 seed lead, B1 score+pipeline PATCH, B2 /full + /note, B3 sequences CRUD [FAILS pending backend fix], B4 AI writer, B5 reports, cleanup)"
+  ],
+  "success_rate": {"backend": "92.8% (13/14 — 1 critical fail on POST /api/outreach/sequences)", "frontend": "Outreach UI smoke OK except Sequences tab missing seq-new button"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 ; manager@projexino.com / Manager@2026 ; intern@projexino.com / Intern@2026 — all in /app/memory/test_credentials.md.",
+  "seed_data_creation": "Tests create TEST_-prefixed tasks, projects, leads and a TEST_Drip sequence; cleanup happens on the lead and project at test end. Tasks created during A1/A3 are left in admin's task list (low impact — main-board test data). Mark-read in A4 affects intern unread counter.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "After main agent hoists SequenceIn/SequenceStepIn to module scope in outreach.py (or adds = Body(...)), rerun: `cd /app && set -a && source frontend/.env && set +a && python -m pytest backend/tests/test_iter31_outreach_notif.py::TestOutreach::test_B3_sequence_crud -v`. The test creates a 4-step D0/D4/D8/D15 sequence (using `day_offset`), lists, enrolls one lead, then deletes. For frontend, verify seq-new button renders by inspecting Outreach.jsx SequencesTab block; the rest of the Outreach UI testids (`pipeline-stage-*`, `ai-generate`, `reports-period`, `reports-days`) all confirmed present on screen. Login flow: dismiss tutorial modal (SKIP), then click CONTINUE on Admin role card, then fill admin email/password and click 'Enter Admin'.",
+  "rca of the issue": "POST /api/outreach/sequences 422: the Pydantic class SequenceIn is declared inside register_outreach() (a closure). FastAPI/Pydantic v2 does not always treat such inner classes as BaseModel-derived for parameter type inference, so the param falls through to query-string parsing. Verified by direct curl (same 422). Fix is one of: (a) hoist class to module level, (b) add explicit `= Body(...)` on the parameter, (c) use forward ref to module-level class. Recommendation: (a) — also fixes OpenAPI schema. Frontend seq-new missing is a separate UI bug to be investigated in Outreach.jsx SequencesTab JSX."
+}

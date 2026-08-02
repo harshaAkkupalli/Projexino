@@ -1,0 +1,63 @@
+{
+  "summary": "Iteration 17 — Frontend validation of PROJEXINO iOS-native polish (Dashboard list rows, bottom-sheet modals, hero compression, input pill style, launchpad pagination, marketing pages). Tested with admin@projexino.com on desktop viewport 1440x900. 11/12 major checks PASS. One MINOR design deviation on desktop modal radii. No blocking issues.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Portal modals (New Task on /app/tasks, New Campaign on /app/email-campaigns)",
+        "issues": [
+          "On desktop viewport >=1280px the bottom-sheet modal applies border-radius: 28px to ALL four corners (index.css line 523: 'border-radius: 28px !important' under @media (min-width: 768px) body:has(.app-shell-frame) .fixed.inset-0.z-50 > div). Spec says 'border-radius only on top corners'. The modal IS bottom-aligned (padding-bottom: 24px gap) and rounded, but visual is more of a centered-card-pinned-to-bottom than a true sheet that hugs the viewport bottom edge. Mobile (<720px) correctly applies top-only radii via lines 484-485. Fix: change line 523 from 'border-radius: 28px !important' to 'border-top-left-radius: 28px; border-top-right-radius: 28px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; padding-bottom: 0;' to make the desktop variant truly hug the viewport bottom."
+        ]
+      },
+      {
+        "screen": "Live Graphs on /app/dashboard during route changes",
+        "issues": [
+          "3 console errors observed during navigation cycle: 'Error: <circle> attribute cy: Expected length, \"undefined\".' — Recharts Pie/Area renders a circle with undefined cy when projectData is empty during transition (Dashboard.jsx line ~270 PieChart placeholder data path). Non-blocking but pollutes console. Fix: ensure placeholder Pie always provides numeric value AND avoid mounting the donut when projectAnalytics is null OR pass cx/cy explicitly."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [ "/app/test_reports/iteration_17.json" ],
+  "action_items": [
+    "(Design polish) On viewport >=1280px, change the modal panel border-radius from all-28px to top-corners-only and remove the 24px bottom padding so modals truly slide up to the viewport bottom (index.css line ~514-525).",
+    "(Console hygiene) Fix Recharts 'circle cy undefined' warning by guarding the empty-state donut on Dashboard."
+  ],
+  "critical_code_review_comments": [
+    "Dashboard.jsx correctly renders 6 grouped list rows under a single container with header 'Live numbers' and each row uses data-testid=stat-card-<label>. Click navigation verified for total-leads → /app/leads.",
+    "AppShell.jsx applies main.app-page-launchpad on /app (isHome) and main.app-page on inner pages — the CSS list-collapse rules at index.css line 596+ correctly scope to .app-page only, so launchpad keeps its 3D grid and inner pages get the iOS list look.",
+    "EmailCampaigns.jsx has TWO modals on lines 239 and 414 using identical 'fixed inset-0 z-50 flex items-center justify-center' pattern. Both rely on the global CSS override to become sheets. If a 3rd modal is added in future, it will also auto-convert (good DRY pattern) — keep relying on the CSS layer.",
+    "Privacy / Terms routes are mounted OUTSIDE the AppShell so they do NOT receive .app-page transformations — verified by absence of main.app-page on /privacy. H1s render correctly. Good separation of marketing vs. portal styling.",
+    "Marketing Navbar.jsx — 'Sign in' confirmed removed (DOM scan of <nav> returned no match). Footer 'Privacy Policy' and 'Terms & Conditions' links carry data-testid=footer-privacy / footer-terms and resolve to /privacy and /terms respectively.",
+    "Input pill style: index.css lines 729-738 force border-radius: 12px on text/email/password/search/number inputs within .app-shell-frame. Verified via getComputedStyle on Title input and Description textarea inside New Task modal — both returned exactly 12px. Meets requirement."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (frontend-only test)", "frontend": "92% (11/12 checks PASS, 1 minor design deviation)" },
+  "test_credentials": "admin@projexino.com / Projexino@2026 — verified working via swipe-card login flow (must click CONTINUE on Admin card before email/password form appears).",
+  "seed_data_creation": "None — used seeded data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Login flow is a SWIPE-CARD UX, not a direct form. Order: navigate /login → wait 1.8s → page.click('button:has-text(\"CONTINUE\")') on the admin card → wait 1.5s → fill email/password → submit. For intern login, swipe right through the card carousel (chevron-right button) ~4 times until 'Intern' role label is the visible front card, then CONTINUE. Set localStorage('pj_intro_seen','1') BEFORE login to skip the welcome popup. Modals use class 'fixed inset-0 z-50 flex items-center justify-center' (NOT role=dialog) — query the inner panel via '.fixed.inset-0.z-50 > div:not([role=alert])' to inspect computed styles. After login, a Sonner welcome toast occupies the top-right corner for ~3s and can intercept clicks on app-menu-btn / app-notif-btn — wait_for_timeout(3500) before clicking those.",
+  "verified_checks": {
+    "marketing_navbar_no_signin": true,
+    "footer_privacy_terms_links": true,
+    "privacy_page_renders_outside_portal": true,
+    "terms_page_renders_outside_portal": true,
+    "dashboard_large_title_good_day": true,
+    "dashboard_live_numbers_header": true,
+    "dashboard_6_stat_rows_grouped_single_parent": true,
+    "stat_card_total_leads_navigates_to_leads": true,
+    "leads_page_hero_paragraph_hidden": true,
+    "tasks_hero_compressed_to_h1_button_inline_stats": true,
+    "tasks_new_task_modal_opens_and_is_bottom_aligned": true,
+    "modal_border_radius_top_only_on_desktop_1280plus": false,
+    "input_border_radius_gte_12px": true,
+    "search_sheet_opens": true,
+    "notif_sheet_opens": true,
+    "launchpad_app_uses_app_page_launchpad_class": true,
+    "launchpad_admin_3_dots_3_pages": true,
+    "no_blocking_console_errors_during_nav": true
+  },
+  "rca_of_the_issue": "The modal radius deviation on desktop is a CSS specificity / intent mismatch in /app/frontend/src/index.css: at line 514-525 the desktop ruleset overrides the earlier mobile rules with 'border-radius: 28px !important' (all corners) AND adds 'padding-bottom: 24px' on the overlay, which produces a centered-card-near-bottom rather than a true viewport-bottom sheet. To match the user's stated 'border-radius only on top corners' spec on ALL viewports, the desktop block should keep top-only radii (28px top-left/right, 0 bottom) and drop the padding-bottom so the panel touches the bottom edge of the phone-frame."
+}

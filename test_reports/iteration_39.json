@@ -1,0 +1,47 @@
+{
+  "summary": "Iter 39 / Phase C — Document upload multi-file + HR Sign-Doc attachments. Full backend + frontend verified end-to-end. 9/9 pytest pass; UI playwright confirms Documents drag-drop queue, 10MB inline error, multi-upload skips oversize while uploading valid ones, modal stays open when any row errors. HR sign-docs: New document editor opens, hr-sd-dropzone + hr-sd-file-input + hr-sd-attached + hr-sd-save all work, card with hr-sign-{id}-attachments + hr-sign-download-{att_id} renders and click triggers download. Backend correctly strips content_base64 from POST response + GET list. Download endpoint returns base64. 10MB cap enforced server-side with 'exceeds 10MB limit'.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verified_flows": [
+    "POST /api/hr/sign-docs with 2 attachments → 200, attachments list returned WITHOUT content_base64 ✓",
+    "GET /api/hr/sign-docs → list projection strips content_base64 from each attachment ✓",
+    "GET /api/hr/sign-docs/{id}/attachments/{aid}/download → returns {name, mime_type, content_base64}, decoded payload matches uploaded bytes ✓",
+    "Unknown att_id → 404; unknown doc_id → 404 ✓",
+    "POST /api/hr/sign-docs with size>10485760 → 400 'exceeds 10MB limit' ✓",
+    "Sign-doc no-attachment regression: create → sign → already-signed-400 → delete ✓",
+    "/api/documents regression: upload → download (base64 roundtrip) → list contains → delete ✓",
+    "UI: /app/documents → upload-doc-btn opens doc-upload-modal with doc-dropzone + doc-file-input ✓",
+    "UI: 3-file queue (2 valid + 1 oversize) populates doc-upload-queue; oversize row shows '10.0 MB · max 10 MB' inline ✓",
+    "UI: doc-save-btn uploads 2 valid files (emerald check icons), skips oversize (rose error row), modal stays open when any row errors (correct partial-success behavior) ✓",
+    "UI: Document cards refresh in list, can be deleted via doc-delete-{id} ✓",
+    "UI: /app/hr → hr-tab-sign-docs → hr-sign-new (label 'New document') opens editor ✓",
+    "UI: hr-sd-dropzone visible, hr-sd-file-input attaches file, hr-sd-attached shows file row, hr-sd-save → toast 'Document created' ✓",
+    "UI: New card carries [data-testid=hr-sign-{id}-attachments] with [data-testid=hr-sign-download-{att_id}], click triggers /api/hr/sign-docs/{id}/attachments/{aid}/download ✓"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter39_phase_c.py",
+    "/app/test_reports/pytest/iter39_phase_c.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Documents.jsx UploadModal.submit(): `const ok = queue.filter((q) => q.status === 'done').length || (valid.length);` reads from the closure-bound `queue` which is stale because setQueue updates trigger re-renders but the local `queue` here references the snapshot at submit() call time. The toast count may be wrong when partial uploads occur. Minor — not blocking. Consider tracking a local counter (`doneCount`) inside the loop and using that for the toast message.",
+    "Documents.jsx submit(): the auto-close `setTimeout` checks `q.every((r) => r.status === 'done')` — good. But when even one row is 'error', the modal stays open with no explicit guidance to the user that errored rows are stuck. Minor UX nit.",
+    "hr_module.py create_sign_doc: response builder `out = {**doc, 'attachments': [{k: v ...}]}` correctly strips content_base64. Also list_sign_docs uses Mongo projection `attachments.content_base64: 0` — both paths covered ✓.",
+    "Code review for hr_module.py — `from typing import ... Any` is missing; line 624 uses `Dict[str, Any]` (in `list_payslips`). Currently works because `Any` is implicitly available via `Dict` in some env, but should be added to the import. (Pre-existing, not from this iter.)",
+    "Phase D (Clients module) still pending — out of scope for this iteration but called out by user."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter39_phase_c.py (new)"
+  ],
+  "success_rate": { "backend": "100% (9/9)", "frontend": "100%" },
+  "test_credentials": "admin@projexino.com / Projexino@2026 — login works, lands /app dashboard. intern creds not exercised in this iter (Phase C is admin-driven).",
+  "seed_data_creation": "All TEST_QA_* data created during tests was cleaned up (sign-doc deleted, documents deleted via API roundtrip in UI test).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 39 Phase C is ship-ready. Backend test file /app/backend/tests/test_iter39_phase_c.py is the regression baseline for HR sign-doc attachments + Documents upload. To run: REACT_APP_BACKEND_URL=https://projexino-hub.preview.emergentagent.com pytest /app/backend/tests/test_iter39_phase_c.py -v. Next iteration should pick up Phase D Clients module. The known typing.Any import gap in hr_module.py:624 (list_payslips) is pre-existing and not from this iter — flag if you touch that file. Intern role-routing regression from iter38 (intern → /app/dashboard instead of /intern) is still open and unrelated to Phase C.",
+  "rca of the issue": "N/A — no issues found."
+}

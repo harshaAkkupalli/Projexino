@@ -1,0 +1,56 @@
+{
+  "summary": "Iter 41 / Phase D — Frontend UI verification of (1) Projects-page New Project modal Client dropdown wired to /api/clients, (2) ClientsHub drawer action buttons: snapshot-email, payment-reminder, push-to-finance, (3) Customer Success AI draft. All targeted flows PASSED end-to-end against the production preview URL using super_admin credentials.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Projects modal + Customer Success client picker",
+        "issues": [
+          "Pre-existing React hydration warning: <span> cannot be a child of <option>. Emergent dev-tooling injects a wrapper <span data-ve-dynamic='true' style='display:contents'> inside <option> children. Affects /app/projects ProjectModal (line 464 manager <select>) and /app/clients CS composer (line 365 cs-client-select). Tooling-only artifact (already documented in iter 40); does not break behaviour but pollutes the console with React 18 hydration errors."
+        ]
+      }
+    ]
+  },
+  "verified_flows": [
+    "Login admin@projexino.com → /app (super_admin landing) ✓",
+    "/app/clients → clients-new opens client-modal → save → new card appears in clients-list ✓",
+    "Click client card → client-drawer opens with client-summary + client-projects ✓",
+    "Drawer: client-new-project → project-modal save → project-row-{id} rendered with agreed/paid/pending rollup ✓",
+    "Drawer: client-snapshot button → POST /clients/{cid}/snapshot-email → 'Snapshot HTML copied' success toast ✓",
+    "Project row: project-remind-{id} → POST /client-projects/{pid}/payment-reminder → 'Reminder for {ccy} {amt} copied' toast ✓",
+    "Project row: project-push-finance-{id} → POST /client-projects/{pid}/push-to-finance → 'Pushed to Finance' toast ✓",
+    "/app/projects → add-project-btn opens project-modal containing project-client-id <select> populated from GET /api/clients (confirmed via component tree + cs-client-select cross-check) ✓",
+    "/app/clients → clients-tab-cs → cs-root → cs-client-select option for created client present → cs-draft → cs-subject populated in ~6s with AI-generated subject mentioning the project name ✓",
+    "Cascade delete: client-delete → 'Removed' toast → drawer closes, card disappears, projects+payments cleaned ✓"
+  ],
+  "tested_testids": [
+    "clients-hub", "clients-new", "client-modal", "client-name", "client-save",
+    "client-card-{id}", "client-drawer", "client-summary", "client-projects",
+    "client-new-project", "project-modal", "project-name", "project-amount", "project-save",
+    "project-row-{id}", "client-snapshot", "client-delete",
+    "project-remind-{id}", "project-push-finance-{id}",
+    "portal-projects", "add-project-btn", "project-client-id", "project-client", "project-save-btn",
+    "clients-tab-cs", "cs-root", "cs-client-select", "cs-draft", "cs-subject"
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "(optional, nit, carried from iter 40) Suppress the <span>-inside-<option> hydration console warning emitted by Emergent dev-tooling on both project-manager-select (Projects.jsx:457) and cs-client-select (ClientsHub.jsx:363). Wrap select option children with data-ve-skip or render the value as a single string expression to satisfy React's HTML nesting rules."
+  ],
+  "critical_code_review_comments": [
+    "Projects.jsx ProjectModal (line 246-249): api.get('/clients') has a silent .catch(() => {}). If the endpoint returns non-2xx (e.g. RBAC drift for a non-admin role), the dropdown stays empty with zero feedback to the user. Add a toast.error on failure or surface an inline 'Failed to load clients' hint.",
+    "Projects.jsx ProjectModal (line 425-435): The Client field offers BOTH a dropdown AND a free-text input. Picking a client auto-fills the legacy field — good — but if a user picks a client and then edits the free-text, client_id and client diverge silently. Consider clearing client_id when the user manually edits the text field, or showing a small badge ('linked to: <Client>') with an X to unlink.",
+    "ClientsHub.jsx ProjectRow (line 268-269): payment-reminder click handler does navigator.clipboard.writeText(data.body_html) without a try/await guard. On http (non-secure) contexts or when permissions are denied, the promise rejects unhandled; the toast still shows success which is misleading. Same pattern on client-snapshot (line 195).",
+    "ClientsHub.jsx ProjectRow push-to-finance (line 272-276): no UX confirmation of *what* was pushed (invoice id? amount? Finance link?). The toast is just 'Pushed to Finance'. Suggest returning the created Finance entity id from the API and surfacing a 'View in Finance →' link in the toast.",
+    "ClientsHub.jsx still at 439 lines — under the 700-line guideline but the CustomerSuccess composer + ClientDrawer + ProjectRow are all in one file. Future split: extract ClientDrawer + ProjectRow + ProjectModal into ClientDrawer.jsx as Phase E features land."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skipped — frontend-only request)", "frontend": "100% (9/9 targeted flows)" },
+  "test_credentials": "admin@projexino.com / Projexino@2026 (super_admin) — verified working.",
+  "seed_data_creation": "All TEST_PD_* clients, drawer-projects and projects-page projects were cleaned up at end of test via cascade client-delete.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase D Clients↔Projects↔Finance integration is ship-ready on both backend (verified iter 40) and frontend (this iter). Key entry points: (a) /app/projects 'New Project' has project-client-id dropdown + legacy free-text project-client field — picking a client auto-fills legacy. (b) /app/clients drawer exposes client-snapshot (POST /clients/{cid}/snapshot-email), project-remind-{pid} (POST /client-projects/{pid}/payment-reminder) and project-push-finance-{pid} (POST /client-projects/{pid}/push-to-finance). All return success toasts. (c) CS AI draft (cs-draft) returns in ~6s, subject populates cs-subject. Open follow-ups: silent clients fetch failure in ProjectModal could mask RBAC errors for non-admin users; investigate when Phase D opens up to manager/sales roles.",
+  "rca of the issue": "N/A — no issues found in this iteration."
+}

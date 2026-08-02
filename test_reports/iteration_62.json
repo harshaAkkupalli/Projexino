@@ -1,0 +1,42 @@
+{
+  "summary": "Iter62 — Redesigned WhatsApp templates + public pay page + finance/bank settings + rebuilt invoice PDF. Backend 12/12 pytest in test_iter62_pay_bank_pdf.py PASS: (1) GET/PUT /api/finance/settings admin-only with persistence + restore; unauth returns 401/403. (2) Public GET /api/public/invoice-pay/{token} returns invoice summary + bank obj + stripe_enabled:true; 404 on bad token. (3) POST /api/public/invoice-pay/{token}/checkout returns LIVE checkout.stripe.com URL + session_id (verified starts with cs_test_); 404 on bad token; 400 for already-paid handled. (4) POST /api/finance/invoices/{id}/whatsapp wa_text contains PROJEXINO SOLUTIONS header, ━ divider, '▸ *Invoice No:*' rows, '💳 *Pay Securely' with /pay/invoice/{token}. (5) POST /api/testimonial-requests/{rid}/whatsapp returns structured wa_text w/ /testimonial/{token} link + phone digits. (6) GET /api/finance/invoices/{id}/pdf and GET /api/public/finance-doc/{token} both return %PDF, >20KB. (7) POST /api/finance/projects/{fid}/invoices — newly-created invoice auto-assigns share_token that works on public pay page immediately. Regression iter61 10/10 PASS after minor assertion update (structured template uses '*Invoice No:*' not old 'Invoice for' string). Frontend E2E: (a) /pay/invoice/689febbe5c364bb0a560ca10a33215b6 (no login) renders pay-amount=INR 200.00, pay-bank-details with 7 copy buttons (bank/name/acct/ifsc/swift/branch/upi), pay-download-btn visible, pay-card-btn navigates to https://checkout.stripe.com/c/pay/cs_test_... — verified navigation commit; invalid-token URL shows pay-error 'Invalid or expired link'. (b) Admin login → /app/finance → finance-bank-settings-btn opens bank-settings-modal pre-filled with HDFC data, edit bank_name field, bank-settings-save clicked, toast 'Payment details saved — they now appear on every invoice PDF & pay page' shown, reopen modal → EDIT_TEST suffix persisted → restored. (c) /app/finance → Demo Web Build card → Invoices tab → 8 inv-wa buttons; first click opens WhatsAppSendModal with Preview tab (whatsapp-preview visible, contains 'PROJEXINO' and 'Pay Securely', 8 bold elements); switch to Edit tab → whatsapp-message-input textarea (590 chars) contains /pay/invoice/, Pay Securely, ▸ markers; wa-doctype-receipt toggle switches wa_text to Receipt version. (d) /app/testimonials?tab=requests shows 3 requests; req-whatsapp-{id} (an <a> element) opens WhatsAppSendModal — preview visible with 5 bold elems, 'feedback'/'testimonial' words; Edit tab textarea 450 chars contains /testimonial/ + Projexino.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter62_pay_bank_pdf.py",
+    "/app/backend/tests/test_iter61_whatsapp.py",
+    "/app/test_reports/pytest/iter62_results.xml",
+    "/app/test_reports/pytest/iter61_regression.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Backend stripe_invoices.public_invoice_pay_checkout uses payload.origin_url unvalidated to build success_url/cancel_url — if a malicious caller passes 'javascript:...' or an attacker-controlled origin, they can hijack the Stripe redirect. Not exploitable to leak payment (Stripe validates URL schemes) but should reject anything not matching an allowlist of PUBLIC_FRONTEND_URL / REACT_APP_BACKEND_URL. LOW priority (client-facing UX bug, not RCE).",
+    "Backend finance._build_invoice_pdf is invoked on every /api/public/finance-doc/{token} and every /api/finance/invoices/{id}/pdf request (rebuild-on-the-fly). For invoice attachments >20KB × N clients hammering the pay page (or reload), this becomes CPU-bound. Consider caching the built bytes in db.invoices.pdf_base64 with a hash of (invoice + bank + finance) to invalidate; only rebuild when hash differs. MEDIUM priority once traffic scales.",
+    "Backend finance.py:1596 finance_whatsapp_reminder swallows first-name split with `((fp.get('client_name') or 'there').split(' ') or ['there'])[0]` — if client_name is empty string '', split(' ') gives [''] not [] so first='' → wa_text will have 'Hi , 👋'. Minor cosmetic. Consider `first = (fp.get('client_name') or 'there').split()[0] if (fp.get('client_name') or '').strip() else 'there'`.",
+    "Backend stripe_invoices.py:249 uses tuple key-loop with dict.get for bank fields — clean, but consider extracting to a helper to DRY-out the same 8-field tuple that appears in finance.py:824 (put_finance_settings 'allowed') and _build_invoice_pdf. Change one place, forget another → drift risk.",
+    "Frontend PayInvoice.jsx (per iter62): on card-btn click, expects backend to return checkout URL then does window.location.href — verified visually. However, if the fetch call fails mid-way (network drop), there's no visible spinner/error state on the button beyond the browser's default. Consider a small loading state + toast on failure. UX polish.",
+    "Frontend TestimonialsHub.jsx:547 uses <a href='#wa' onClick preventDefault> for the WhatsApp trigger — semantically the element is a click handler, not a navigation link. Should be a <button> for a11y (keyboard focus + screen-reader announces 'link' incorrectly). LOW priority.",
+    "Frontend BankSettingsModal (Finance.jsx): edits are optimistically visible pre-save but there's no dirty-state warning if the user closes the modal (ESC) without saving. Consider `if (dirty) confirm('Discard changes?')` on close. LOW priority."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter62_pay_bank_pdf.py (NEW — 12 pytest cases across 7 test classes)",
+    "/app/backend/tests/test_iter61_whatsapp.py (updated 2 assertions to match iter62 restructured template — 'Invoice for' → '*Invoice No:*', 'Receipt for' → '*Receipt No:*')"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 iter62 + 10/10 iter61 regression)",
+    "frontend": "100% (pay page + card→stripe redirect + bank modal persistence + inv-wa preview/edit tabs + doctype toggle + req-whatsapp structured message all verified)"
+  },
+  "test_credentials": "admin@projexino.com / Projexino@2026 (super_admin) — from /app/memory/test_credentials.md",
+  "seed_data_creation": "One TEST_iter62_autotoken invoice created on finance project 57419353-a008-4582-af6e-c6511d28c126 (Demo Web Build) — has share_token, amount 100 INR. Bank settings PUT test temporarily wrote TEST_BANK_iter62 then restored from HDFC snapshot (main agent's request to preserve). Testimonial requests (Test Client / TEST_Cancel / TEST_RequestUser) were already seeded from earlier iterations — untouched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter62 feature (redesigned WhatsApp + public pay page + bank settings) is stable. Notes: (1) Old iter61 test assertions were updated in-place — template redesign is intentional. Keep both test files in regression rotation. (2) Invoice share_token 689febbe5c364bb0a560ca10a33215b6 works on the public pay page for invoice PRX-2026-00015 (₹200 test). (3) STRIPE_API_KEY in backend/.env is test-mode (returns cs_test_... session ids); do NOT complete a real Stripe payment during testing — verifying that navigation reaches checkout.stripe.com is enough. (4) Finance project 57419353-a008-4582-af6e-c6511d28c126 (Demo Web Build) now has 8 invoices after this test run. (5) Demo Web Build card must be CLICKED to enter the project detail view — the /app/finance/{id} direct URL loads an empty background (route exists but landing renders blank); use the card-click flow instead. (6) TestimonialsHub `req-whatsapp-{id}` is an <a> element, not <button> — selector must use [data-testid^='req-whatsapp-'] without the tag prefix.",
+  "rca of the issue": "N/A — feature-verification pass; no bugs found."
+}

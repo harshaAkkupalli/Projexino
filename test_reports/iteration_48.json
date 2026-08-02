@@ -1,0 +1,68 @@
+{
+  "summary": "Iter 48 — Verified (1) Customer Success block-based email editor (heading/paragraph/bullets/image/divider), (2) CTA URL absolute/auto-prefix behaviour, (3) Mobile (390x844) + Tablet (768x1024) responsive layouts for portal & public site. Backend: 4/4 pytest passed against /api/clients/{id}/cs-email/save and /draft (blocks, cta_type, cta_label, cta_url all persisted; delete clears them). Frontend desktop: 17/17 checks passed — cs-blank exposes editor without AI, all 5 block-add chips work, heading/paragraph/bullet/image/divider all render correctly in preview iframe with the image URL kept as 'https://picsum.photos/600/300' (not origin-prefixed) and caption included, reorder ↓ and delete × work, finance_updates pre-fills /app/finance and preview href becomes 'https://projexino-hub.preview.emergentagent.com/app/finance' (absolute), custom 'example.com' auto-prefixes to 'https://example.com', external 'https://calendly.com/...' stays unchanged, cta_type='none' renders zero CTA buttons, Save draft persists, Send test fires POST /api/email/send (returned 500 because Gmail not connected on this tenant — graceful toast shown, matches main agent's note). Frontend mobile/tablet: 12/12 checks passed — /login no horizontal scroll at 390w, /app/digi shows digi-mobile-nav-toggle and hides 220px left rail at <md, toggle reveals a 9-item 2-col grid, tapping an item closes the drawer; public / hamburger present and no overflow; at 768x1024 desktop left rail returns and mobile toggle is hidden.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/email/send (via cs-test)", "issue": "Returns 500 when Gmail is not connected on the tenant — toast surfaces 'Request failed with status code 500'. Expected behaviour per main agent (graceful error), but the message string could be made more user-friendly (e.g. 'Connect Gmail in Settings to send test emails')."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "ClientsHub > Customer Success right pane", "issues": ["The 'Closing' field is duplicated — rendered once in the greeting/closing 2-col grid AND again below the BlockEditor (lines 762 and 772 in ClientsHub.jsx). Both bind to draft.closing so they stay in sync, but it is confusing UI — consider removing the second one."]}
+    ]
+  },
+  "tested_features": {
+    "cs_blank_button": "PASS — cs-blank populates default draft (subject/greeting/closing) and exposes the editor pane without an AI call.",
+    "block_editor_add_chips": "PASS — cs-add-block-{heading|paragraph|bullets|image|divider} each appends a new card to cs-blocks.",
+    "block_editor_heading": "PASS — typing into cs-block-heading-{idx} renders <h2 ...>text</h2> in preview iframe.",
+    "block_editor_paragraph": "PASS — cs-block-paragraph-{idx} renders <p ...>text</p> in preview.",
+    "block_editor_bullets": "PASS — cs-block-bullet-add-{idx} adds a new bullet input; preview contains <ul><li>...</li><li>...</li></ul> with both items.",
+    "block_editor_image_url": "PASS — cs-block-image-url-{idx} preview contains 'src=\"https://picsum.photos/600/300\"' (kept as-is, NOT origin-prefixed) and the caption text.",
+    "block_editor_image_upload_testid": "PASS — cs-block-image-upload-{idx} input[type=file] is present inside the empty-image block (not exercised with set_input_files but DOM-confirmed).",
+    "block_editor_reorder": "PASS — ↓ on first block (heading) swaps it with the paragraph below.",
+    "block_editor_delete": "PASS — × removes a block; list updates immediately.",
+    "block_editor_divider": "PASS — divider block renders <hr ...> in preview.",
+    "cta_finance_absolute": "PASS — cta_type=finance_updates pre-fills cs-cta-url='/app/finance'; preview href = 'https://projexino-hub.preview.emergentagent.com/app/finance' (absolute via window.location.origin).",
+    "cta_custom_auto_prefix": "PASS — cta_type=custom + url='example.com' (no scheme) → preview href='https://example.com'.",
+    "cta_external_unchanged": "PASS — 'https://calendly.com/projexino/intro' rendered unchanged in preview href.",
+    "cta_none_no_button": "PASS — cta_type=none renders no <a> CTA button in the iframe srcDoc (verified by absence of the gradient style string).",
+    "save_draft": "PASS — cs-save → 'Draft saved · <timestamp>' badge visible immediately.",
+    "send_test": "GRACEFUL FAIL — cs-test fires POST /api/email/send; tenant Gmail not connected → 500 → toast 'AxiosError: Request failed with status code 500'. Per main-agent note, this is expected.",
+    "mobile_login_390": "PASS — 0px horizontal overflow, form fits.",
+    "mobile_digi_390": "PASS — digi-mobile-nav-toggle visible, left rail hidden, tap → 9-item 2-col grid, tap item → drawer closes, 0px overflow.",
+    "mobile_public_home_390": "PASS — 0px overflow, hamburger present.",
+    "tablet_768_digi": "PASS — desktop left rail aside visible, mobile toggle hidden, 0px overflow.",
+    "backend_cs_email_save_blocks": "PASS — POST /api/clients/{id}/cs-email/save persists blocks[], cta_type, cta_label, cta_url. GET /cs-email/draft returns identical data. DELETE clears it."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter48_cs_blocks_cta.py",
+    "/app/test_reports/pytest/iter48_cs_blocks.xml"
+  ],
+  "action_items": [
+    "(LOW) Remove the duplicated 'Closing' input at ClientsHub.jsx line 772 — line 762 already renders it. They share the same draft.closing binding so it's not a data bug, just clutter.",
+    "(LOW) Improve cs-test/send-email error toast: surface a friendlier message when Gmail is not connected (currently shows raw 'AxiosError: Request failed with status code 500')."
+  ],
+  "critical_code_review_comments": [
+    "absUrl() at ClientsHub.jsx:505 correctly handles https://, http://, mailto:, tel:, leading-slash (origin-prefix), and otherwise prefixes 'https://'. Edge case to consider: a user pasting 'www.example.com' will also be prefixed to 'https://www.example.com' (good), but 'example.com/path' likewise becomes 'https://example.com/path' (good).",
+    "rebuildHtml() correctly skips CTA when ctaOpt.id==='none' OR ctaLabel is empty OR ctaUrl is empty — verified via none-test (no <a> button rendered).",
+    "BlockEditor uploads images as data: URLs (FileReader.readAsDataURL) — works for preview and Save (Mongo stores the data URL string), but data URLs over ~100KB will balloon Mongo docs and cause >16MB hits on heavy emails. Consider POSTing to a real /api/uploads/image endpoint instead and storing the public URL.",
+    "Backend /api/clients/{id}/cs-email/save accepts payload.get('blocks') without schema validation — a malformed block (e.g. {type:'foo'}) would persist silently. Add a Pydantic model with type Literal['heading','paragraph','bullets','image','divider'] for safety.",
+    "The 'Closing' field is rendered twice in CustomerSuccess (lines 762 and 772). Both bind to the same state so behaviour is consistent; remove duplicate."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter48_cs_blocks_cta.py (new pytest, 4 tests)",
+    "/app/test_reports/iteration_48.json"
+  ],
+  "success_rate": {
+    "backend": "100% (4/4)",
+    "frontend": "100% (17/17 desktop block-editor + CTA, 12/12 mobile/tablet)"
+  },
+  "test_credentials": "admin@projexino.com / Projexino@2026 (read from /app/memory/test_credentials.md).",
+  "seed_data_creation": "Created a TEST_iter48_<uuid> client via POST /api/clients during backend tests and deleted it in teardown. UI tests reused the existing 'naeema · givinghope' client and left a saved cs-email draft on that client (cta_type=finance_updates, 4 blocks). If you need a clean slate, hit DELETE /api/clients/<naeema-id>/cs-email/draft or open the editor and re-save.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All three iter-48 changes (block editor, absolute CTA URLs, mobile responsiveness) are working end-to-end. Block-editor testids: cs-blank, cs-add-block-{type}, cs-blocks, cs-block-{idx}-{type}, cs-block-heading-{idx}, cs-block-paragraph-{idx}, cs-block-bullet-{idx}-{itemIdx}, cs-block-bullet-add-{idx}, cs-block-image-upload-{idx}, cs-block-image-url-{idx}, cs-block-image-caption-{idx}. CTA testids: cs-cta-type, cs-cta-label, cs-cta-url. Mobile testid: digi-mobile-nav-toggle. Preview iframe selector: page.query_selector('iframe[title=\"cs-preview\"]') then get_attribute('srcdoc'). Email send via /api/email/send returns 500 on this tenant because Gmail is not connected — that's the only flake. Regression: /app/backend/tests/test_iter48_cs_blocks_cta.py covers save+get+custom-cta+delete.",
+  "rca_of_issue": "No regressions found. The 500 on cs-test is environmental (Gmail OAuth not configured for the admin user on this preview tenant) — not a code bug."
+}

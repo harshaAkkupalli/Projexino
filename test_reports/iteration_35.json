@@ -1,0 +1,62 @@
+{
+  "summary": "Iter 35 — HR Onboarding Engine. Backend: 18/18 pytest passing (POST/GET/PATCH/DELETE, PDF download + regenerate, RBAC, duplicate guard, prorated maths, dept templates, cascade delete). Frontend: full create→drawer→status-change→cascade-delete e2e verified via Playwright. Fixed two real bugs along the way (see below).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "bugs_fixed_during_test": [
+    {
+      "file": "/app/backend/onboarding.py",
+      "issue": "Route ordering bug — GET /api/hr/onboarding/templates was being swallowed by GET /api/hr/onboarding/{rid}, returning 404 'Onboarding record not found'.",
+      "fix": "Added a literal /templates handler BEFORE the {rid} route. Original handler renamed to /templates_full to avoid duplication and keep diff small.",
+      "rca": "FastAPI matches routes in registration order; path-param routes will swallow literal sibling paths unless the literal is declared first."
+    },
+    {
+      "file": "/app/frontend/src/pages/portal/HrOnboarding.jsx",
+      "issue": "New-hire create flow returned HTTP 422 whenever the optional Reporting-manager / Mentor email fields were left blank. Pydantic Optional[EmailStr] rejects empty strings; frontend was always sending '' for those fields. This blocked the entire FE Create flow.",
+      "fix": "Strip empty manager_email / mentor_email from the payload before POST so backend sees them as absent (default null).",
+      "rca": "form state initialised those keys to '' and they were posted as-is. EmailStr disallows empty string."
+    }
+  ],
+  "playwright_flow_verified": [
+    "Login as admin@projexino.com (Projexino@2026)",
+    "Navigate /app/hr → click hr-tab-onboarding",
+    "5 stat chips visible (total/kickoff/docs/tasks/completed)",
+    "onb-new-btn opens onb-new-dialog",
+    "Live prorated preview: '₹49,355 · 17 of 31 days in the start month.' for 90000@2026-07-15 ✓",
+    "Save → toast, dialog closes, card appears with KICKOFF pill, ₹49,355 chip, Tasks=6, Offer-letter download link",
+    "Card click → onb-detail drawer with 6 tasks in onb-detail-tasks",
+    "onb-set-status-docs_pending → card pill updates to DOCS_PENDING after closing drawer",
+    "onb-detail-delete → cascade-removes record + 6 tasks; card disappears",
+    "Other HR tabs (Regulations, Leave, Payslips) still clickable and load without errors"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter35_hr_onboarding.py",
+    "/app/test_reports/pytest/iter35_hr_onboarding.xml"
+  ],
+  "action_items": [
+    "(Optional) Consider also using FastAPI APIRoute path matching tests to catch future route-ordering regressions in onboarding/.",
+    "(Optional) On the FE, normalise other future Optional[EmailStr] fields the same way — extract a tiny helper instead of inline deletes if more such forms appear."
+  ],
+  "critical_code_review_comments": [
+    "Route ordering inside register_onboarding(): literal routes must be declared before path-param siblings. Now fixed for /templates, but worth a one-time audit if more literal paths are added.",
+    "Pydantic Optional[EmailStr] is unforgiving with empty strings — recommend a thin pre-validator (allow '' → None) on the backend model to harden against any other UI form that may POST empty optional emails. Currently masked by FE-side delete."
+  ],
+  "updated_files": [
+    "/app/backend/onboarding.py",
+    "/app/frontend/src/pages/portal/HrOnboarding.jsx",
+    "/app/backend/tests/test_iter35_hr_onboarding.py"
+  ],
+  "success_rate": {"backend": "100% (18/18)", "frontend": "100% (all critical flows green)"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 ; intern@projexino.com / Intern@2026 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Tests create TEST_QA_* onboarding rows, but every test path cleans them up; final DB state is 0 onboarding_records (verified).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "HR Onboarding endpoints live under /api/hr/onboarding (+ /templates and /{rid}/offer-letter.pdf, /{rid}/regenerate-offer-letter). FE entry: /app/hr → [data-testid=hr-tab-onboarding]. Two bugs were fixed by this testing pass (FastAPI route ordering & FE empty EmailStr) — main agent should self-validate the diffs.",
+  "rca of the issue": "Both issues described under bugs_fixed_during_test with file, root cause and applied fix."
+}

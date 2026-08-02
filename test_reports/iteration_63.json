@@ -1,0 +1,48 @@
+{
+  "summary": "Iter63 — Complete payment lifecycle (track → approve → receipt → ZIP → emails). Backend 16/19 pytest PASS in test_iter63_payment_lifecycle.py; 3 email endpoints returning 500 instead of graceful 400 (real bug — see backend_issues). Frontend E2E on Demo Web Build: public /pay/invoice/{token} fires page_view on load + bank_transfer_claimed on button → shows thanks banner (verified via GET /pay-events); admin Finance → Invoices tab shows activity badges (inv-views/inv-bankclaim ✓, inv-payclicks only when card path clicked), payment-request-modal opens with recipient checkboxes, approve-payment-modal opens with method+note+confirm, multi-select shows ZipBar → ZIP downloads (projexino-documents-2026-07-08.zip) + zip-email-modal opens; Receipts tab renders receipts-pane w/ receipt-pdf/receipt-email/receipt-wa buttons; WhatsAppSendModal for receipt shows 'Receipt No:' + '/api/public/finance-receipt/' download URL. Approve flow verified end-to-end via backend test (RCP-2026-00003 minted on fresh Demo Web Build invoice, invoice→paid, project payments[] pushed, remaining decreased, double-approve→400).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/finance/invoices/{id}/payment-email, POST /api/finance/receipts/{rid}/email, POST /api/finance/documents/zip-email",
+        "issue": "All three email endpoints return 500 (Internal Server Error) instead of graceful 400 when Gmail OAuth credentials are stored but the OAuth client was deleted at Google (google.auth.exceptions.RefreshError: 'deleted_client'). Root cause: _refresh_if_needed(db, token) in email_module.py:324 lets the RefreshError propagate; neither endpoint wraps this call in try/except to translate to 400 'Gmail not connected'. Since a stored (but revoked) token bypasses the existing `if not token: raise 400` gate, users always hit 500. Reproduction: POST /api/finance/receipts/a37d883188124c51a59204ebe35d6a14/email with {'to_email':'x@y.com'} → 500 (traceback in backend.err.log ends in `google.auth.exceptions.RefreshError: ('deleted_client', ...)`). Fix: wrap `_refresh_if_needed` in try/except (RefreshError, HttpError) → raise HTTPException(400, 'Gmail not connected — reconnect from Settings') in all three endpoints (finance.py lines 1809, 1897, 2028).",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter63_payment_lifecycle.py",
+    "/app/test_reports/pytest/iter63_results.xml"
+  ],
+  "action_items": [
+    "Wrap `_refresh_if_needed` calls in receipt_email (finance.py:1809), payment_request_email (~line 1897), and email_documents_zip (~line 2028) with try/except google.auth.exceptions.RefreshError → HTTPException(400, 'Gmail not connected'). Also catch generic Exception during service build so a revoked/broken Gmail token never surfaces as 500 to the client.",
+    "Consider adding a health check on GET /api/settings/gmail-tokens that flags tokens where refresh fails, so UI can surface a 'reconnect Gmail' banner instead of failing at send time."
+  ],
+  "critical_code_review_comments": [
+    "finance.py — `_refresh_if_needed` is called inside three try blocks (receipt_email, payment_request_email, email_documents_zip) but the `try:` starts AFTER the refresh call. The refresh line itself is outside the try, so RefreshError escapes as 500. Move `_refresh_if_needed` inside the try, or wrap it individually — this is the root cause of the 500s.",
+    "finance.py:1651 — `_receipt_pdf_bytes` uses `if not inv:` to detect missing invoice but `find_one` returns `{}` for empty results only sometimes; when `find_one` returns `None`, `inv = {} or {}` after `or {}`, so `if not inv` is True → uses fallback receipt fields (works). But `_bank_settings()` and `_build_invoice_pdf` are called even when invoice was deleted, which is fine, but the fallback dict does NOT include `finance_id` linkage so bank details may render incorrectly if invoice is gone. Low priority (invoice deletion is rare).",
+    "finance.py:1683 — `list_pay_events` sorts by 'at' desc via `.sort('at', -1)` but 'at' is stored as ISO-string; string sort works for ISO-8601 UTC strings BUT if event.at includes different timezone offsets or fractional-second precision variance, ordering could be off by microseconds. Consider storing a numeric epoch alongside 'at' for reliable sort at scale.",
+    "finance.py:1970 `_collect_pdfs_zip` — on invoice PDF build exception, falls back to `inv.get('pdf_base64')` (deprecated cached blob), but on receipt build exception `continue`s and skips. Inconsistent: either both should fallback or both skip. Also, `count == 0 → HTTPException(400)` swallows the specific reason (which invoice/receipt failed). Consider returning a structured error listing skipped ids.",
+    "finance.py:1717 — `payments[].id = uuid.uuid4().hex` is fine, but the payment entry has no `type='approved_invoice'` marker to distinguish from manual `pay-add` entries. Downstream reports (e.g. `remaining` computation) may double-count if a manual payment is added AFTER approve. Consider `type` + a check in `pay-add` to reject overlap.",
+    "PayInvoice.jsx — `track()` is fire-and-forget (`.catch(() => {})`) — if the backend is briefly down when the pay page loads, no page_view is ever recorded. Consider optional retry-once. LOW priority.",
+    "Finance.jsx — approve-payment-modal + payment-request-modal do NOT close on Escape key; only backdrop click closes them (no onKeyDown handler). Minor UX — but tests fail if ESC is used to close. LOW priority."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter63_payment_lifecycle.py (NEW — 19 pytest cases across 6 classes)"
+  ],
+  "success_rate": {
+    "backend": "84% (16/19 — 3 email endpoints returning 500 instead of expected graceful 400 due to un-caught RefreshError)",
+    "frontend": "100% (pay page tracking, bank-claim, activity badges, ZipBar+ZIP download, PaymentRequestModal, ApprovePaymentModal, ReceiptsPane, receipt-wa WhatsApp modal, receipt-email modal — all verified)"
+  },
+  "test_credentials": "admin@projexino.com / Projexino@2026 (super_admin, from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Created 2 TEST_ invoices on finance project 57419353-a008-4582-af6e-c6511d28c126 (Demo Web Build): (1) PRX-2026-00019 (id=dc7ed04d-8295-4ee7-a29a-e2a9e21ad947, ₹222.22 — used for UI tracking + badges; still 'issued'); (2) fresh invoice from pytest fixture (approved → RCP-2026-00003, invoice now 'paid'). Existing paid receipt id=a37d883188124c51a59204ebe35d6a14 (RCP-2026-00001) untouched.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "After main agent fixes the RefreshError→400 translation in finance.py (receipt_email/payment_request_email/email_documents_zip), re-run `pytest /app/backend/tests/test_iter63_payment_lifecycle.py::TestEmailEndpointsGraceful -v` to confirm all 3 now return 400. Frontend flows are stable — no re-run needed. For UI approve flow, note: the payment-request-modal and approve-payment-modal DO NOT close on ESC (only backdrop click); when writing chained UI tests, use `page.click('body', position={x:5,y:5})` to dismiss instead of `page.keyboard.press('Escape')`. Also: fresh invoice creation on Demo Web Build (finance_id=57419353-a008-4582-af6e-c6511d28c126) via POST /api/finance/projects/{fid}/invoices auto-assigns share_token — safe pattern for tracking/approve tests.",
+  "rca of the issue": "Email endpoints 500: In finance.py receipt_email (line 1809), payment_request_email (~line 1897), and email_documents_zip (~line 2028), the `token = await _refresh_if_needed(db, token)` call is placed OUTSIDE the try/except that wraps the Gmail send. When the stored OAuth token cannot be refreshed (google.auth.exceptions.RefreshError — e.g. 'The OAuth client was deleted.'), the exception escapes → FastAPI returns 500. The system's Gmail OAuth client at Google was deleted, so refresh always fails. Fix: wrap `_refresh_if_needed` in try/except (RefreshError, Exception) → raise HTTPException(400, 'Gmail not connected — please reconnect from Settings')."
+}

@@ -1,0 +1,42 @@
+{
+  "summary": "Iter 33 — WXM theme presets + one-click 'Apply to site'. Backend 13/13 pytest pass; Frontend Themes tab UI + click-to-apply flow + public-site CSS variable injection all verified end-to-end.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter33_wxm_themes_apply.py",
+    "/app/test_reports/pytest/iter33_themes_apply.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "wxm.py register_wxm() uses asyncio.create_task(_ensure_preset_themes(db)) at import-time inside register; works but if event loop is replaced at startup this could miss. Consider wiring via FastAPI startup event for determinism.",
+    "useActiveTheme.js caches the active theme in a module-level _cache; admins switching themes won't see the new colour on already-open public tabs unless invalidateActiveTheme() is broadcast (e.g. via storage or websocket). Acceptable for current marketing-site use; flag for future."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter33_wxm_themes_apply.py (NEW)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@projexino.com / Projexino@2026; intern@projexino.com / Intern@2026 — both verified working",
+  "seed_data_creation": "None added; relied on auto-seeded PRESET_THEMES (6) which are idempotent. State at end: 'Crimson Pulse' is the currently-active site theme.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 33 ships a Themes 'Apply to site' flow. 6 presets self-seed on startup. POST /api/wxm/themes/{id}/activate enforces single-active invariant. GET /api/public/wxm/active-theme is no-auth. Frontend Navbar mounts useActiveTheme() which injects <style id='wxm-theme-override'> and sets --brand-primary. Note: there exists a non-preset 'Sunset' theme that pre-dates this iteration — not a bug, just extra. Total themes returned = 7.",
+  "rca_of_the_issue": "n/a — no issues found",
+  "backend_tests_summary": {
+    "preset_seeding": "5/5 pass — all 6 presets present, _preset=true, no duplicates",
+    "activate_endpoint": "4/4 pass — 200 + is_site_active=true, single-active invariant on switch, 404 on missing id",
+    "rbac": "2/2 pass — intern 403, no-auth 401/403",
+    "public_active_theme": "2/2 pass — no-auth returns current theme with correct primary_color, no _id leak"
+  },
+  "frontend_tests_summary": {
+    "themes_tab": "7 cards, 7 apply buttons rendered; 6 'Preset' badges; all 6 preset names visible",
+    "apply_flow": "Click Apply on Crimson Pulse → toast 'Crimson Pulse is now live on the public site.' → exactly 1 active badge on page, on Crimson Pulse card, header chip updated to 'Live: Crimson Pulse'",
+    "public_site_application": "Opened / in new tab → <style id='wxm-theme-override'> present (2513 chars); document.documentElement --brand-primary = #EF4444 (matches Crimson Pulse exactly)"
+  }
+}

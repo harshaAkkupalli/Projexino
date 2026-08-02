@@ -1,0 +1,32 @@
+{
+  "summary": "HR Letters iter 55 — new 'Upload image' third signing option (portal SigBlock + public mobile /sign/:token). Backend: NO code changes needed (existing signature_data_url field accepts any data URL). Tests confirmed the full pipeline. Backend: 3/3 iter55 upload tests + 17/17 iter53+54 regression tests pass = 20/20 (100%). Frontend Playwright: 9/9 test cases pass — portal upload button click → hidden input receives → preview transitions to signed with re-sign button + drag → Save persists a data:image/png;base64 URL → PDF renders at 83.6 KB (>> 20KB threshold, image embedded). Client-side validation: .txt file triggers 'Please upload a PNG, JPG or WebP image' toast; 5 MB file triggers 'Image too large — max 4 MB' toast. Public mobile /sign/:token renders with hrl-sign-upload visible → upload swaps canvas for hrl-sign-uploaded preview + hrl-sign-remove-upload → 'Remove & draw instead' restores canvas → re-upload → hrl-sign-submit → hrl-sign-done success screen. All test letters cleaned up.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_hr_letters_iter55.py",
+    "/app/test_reports/pytest/iter55_upload.xml",
+    "/app/test_reports/pytest/iter55_regression.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "HrLetters.jsx SigBlock upload path only validates MIME on the client. A malicious signed-in admin could bypass by direct API call PATCH signature_blocks[*].signature_data_url with any string. Backend should regex-validate `signature_data_url` matches `^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$` and enforce a size cap (e.g. <= 4 MB decoded). Currently the backend blindly stores whatever string is sent — includes potential javascript: or arbitrary data URLs.",
+    "HrLetterSign.jsx public endpoint accepts POST from anyone with a valid token — same validation gap. A hostile mobile signer could POST a huge base64 payload; server should cap request body size and validate data URL format.",
+    "Playwright confirmed the file input in the portal is inside an `overflow-hidden` idle row that hides once mode transitions to 'signed'. The `<input ref={fileRef} data-testid=hrl-sig-file-*>` is re-mounted when mode returns to idle (Re-sign clicked) — verified this works, but if a user Re-signs multiple times react-signature-canvas may leak the previous DOM listeners. Low priority.",
+    "Portal upload flow requires clicking the SEPARATE global 'Save' button to persist. Users may upload → toast 'Signature uploaded' → close tab → and think it saved. Consider auto-saving the letter immediately after signature upload (same pattern as canvas 'Save signature' does), or add a visual 'Unsaved changes' banner.",
+    "The tiny 1×1 PNG used for testing produces a PDF of 83 KB. Actual signature scans will typically be 200 KB–3 MB (post-compression), which will push the PDF close to 4-5 MB. Consider adding a downsizing step on the client (canvas re-encode at max 800px width, quality 0.85) before uploading — improves PDF render time and email deliverability.",
+    "The 4 MB cap is checked in JS as `f.size > 4 * 1024 * 1024`. This uses binary MB; if the product spec says '4 MB' meaning decimal, this is 4.19 MB effective. Minor but worth documenting."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_hr_letters_iter55.py (created)",
+    "/app/test_reports/pytest/iter55_upload.xml (generated)",
+    "/app/test_reports/pytest/iter55_regression.xml (generated)",
+    "/app/test_reports/iteration_55.json (created)"
+  ],
+  "success_rate": {"backend": "100% (20/20 = 3 iter55 upload + 11 iter53 + 6 iter54 regression)", "frontend": "100% (9/9 Playwright test cases)"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 (super_admin)",
+  "seed_data_creation": "Each Playwright/backend test creates a TEST_-prefixed letter and deletes it at teardown. Ran an additional cleanup sweep to remove 2 stale TEST_iter55 letters left over from mid-test failures. Verified final letter list contains only the 3 UITest Iter53 + Anita Sharma letters (pre-existing seed).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 55 added a third signing method (upload image) alongside draw-on-canvas and mobile QR. Zero backend changes — the existing `signature_data_url` field on `signature_blocks` accepts any data URL. Portal: SigBlock's idle row now has 3 buttons: `hrl-sig-draw-{bid}`, `hrl-sig-upload-{bid}`, `hrl-sig-qr-{bid}` + hidden `hrl-sig-file-{bid}` input. When uploaded, block transitions to preview with `hrl-sig-preview-{bid}` + `hrl-sig-clear-{bid}` (Re-sign). Portal upload requires a subsequent 'Save' click on the top toolbar for persistence. Public sign page (`/sign/:token`, HrLetterSign.jsx) has `hrl-sign-upload` button, hidden `hrl-sign-file` input, uploaded preview `hrl-sign-uploaded` with `hrl-sign-remove-upload`. Client validation regex: `/^image\\/(png|jpe?g|webp)$/`, size cap 4 MiB (4*1024*1024). Toasts use sonner (`[data-sonner-toast]` selector). To trigger file uploads in Playwright: `page.set_input_files('[data-testid=\"hrl-sig-file-{bid}\"]', '/path/to/file.png')` on the hidden inputs — this bypasses the accept attribute. For .txt validation testing, use in-page `DataTransfer` + `dispatchEvent('change')` to bypass the browser's file-picker accept filter. Backend security gap noted in critical_code_review — recommend main agent adds server-side data-URL validation + size cap in a future iteration.",
+  "rca of the issue": "N/A — feature verification only. Feature: added 'Upload image' as third signature capture method. Portal SigBlock's onFilePick handler validates MIME + size then FileReader.readAsDataURL and calls onUpdate({signature_data_url}) — same code path as canvas signing. Public sign page maintains a separate `uploadedUrl` state — if truthy, submit() sends the uploaded data URL else falls back to canvas.toDataURL(). Confirmed end-to-end: upload → preview → save → GET persists → PDF embeds image → size 83 KB."
+}

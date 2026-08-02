@@ -1,0 +1,43 @@
+{
+  "summary": "Iter64 — Verified two portal UX changes: (A) swipe/chevron navigation REMOVED (no data-testid app-prev-btn/app-next-btn anywhere in src or DOM ✓, vertical scrolling works on inner pages), and (B) smart pop-up positioning via useSmartPopups hook (MutationObserver adds .pj-smart-pop + inline left/top/maxHeight). Tested at desktop 1920x800 and mobile 390x844. HR-Letters 'New HR letter' modal gets .pj-smart-pop class ✓, repositions near click ✓, form fields remain interactive ✓, closes & re-opens correctly ✓. Clients Hub client-detail drawer correctly EXCLUDED from smart-pop (no .pj-smart-pop class applied) ✓. However, two real issues found: (1) HR-New modal is 8px off the bottom of viewport (rect.bottom=808 vs vh=800) — inline top=218 is correct math, but a fixed-positioning-scoping ancestor with filter:blur(0px) shifts actual rect.y to 238; the 250ms reclamp uses the same math so it doesn't fix it. (2) The Clients drawer, though excluded from useSmartPopups, is STILL not sliding from the right — desktop CSS in index.css (~line 630-648) force-centers ALL .fixed.inset-0.z-50 overlays and only opts out `> aside` (drawer is a <motion.div>/<div>, not <aside>). Result: drawer renders as centered modal instead of right-side slide-in.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "useSmartPopups (all portal modals)",
+        "issue": "Modal overflows viewport by ~20px because an ancestor with filter:blur(0px) (via framer-motion/decor blur backdrop) creates a scoped containing block for position:fixed children. useSmartPopups computes top:218px correctly for vh=800 & panel h=570, but the panel actually renders at y=238 (offset by ~20 due to scoped containing block), so bottom=808 > vh=800. The 250ms reclamp fires but recomputes the same top:218 (using getBoundingClientRect it sees bottom=808>788, sets newTop=218 which is already the current inline value → no change). Repro at 1920x800: /app/hr-letters → click hrl-new → panel inline style shows top:218px but getBoundingClientRect().y=238. Fix: in useSmartPopups.place() and reclamp, compensate for the offset by reading panel.getBoundingClientRect() vs the intended top and adding the delta OR set position:fixed on document.body-level portal OR add a ResizeObserver for content growth. Minor bug on this screen (8px cut) but same 20px offset on shorter modals would just leave dead space — the bigger issue is the math is off on any modal whose height > vh-40.",
+        "selector": ".pj-smart-pop",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "ClientsHub client-detail drawer (data-testid=client-drawer)",
+        "issue": "User spec says drawer should 'slide in from the RIGHT edge as a full-height panel'. In reality on desktop it renders as a CENTERED modal (childRect x=624, y=54, w=672, h=704 → centered at 1920/2). Root cause: /app/frontend/src/index.css lines 630-648 apply `justify-content: center !important` and `align-items: center !important` + `margin: 0 auto !important` to every `.fixed.inset-0.z-50 > div:not([role='alert']):not(.pj-smart-pop)`, overriding the drawer overlay's tailwind `justify-end`. The opt-out selector `> aside` at line 650 doesn't help because ClientsHub renders the drawer child as `<motion.div>`/`<div>`, NOT `<aside>`. Note: useSmartPopups CORRECTLY excludes this overlay (no .pj-smart-pop class applied), so this iteration's changes did not cause the regression — it's pre-existing CSS from an earlier iter. But it still violates the user's stated expectation for this iteration. Fix options: (a) add `.data-drawer` or `[data-testid='client-drawer']` to the CSS opt-out list, (b) change ClientsHub drawer child to `<aside>`, or (c) add `!items-center !justify-end` to the drawer overlay (unlikely to win over !important without extra specificity).",
+        "selector": "[data-testid='client-drawer']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix useSmartPopups to compensate for fixed-positioning ancestor offset: read `panel.getBoundingClientRect()` AFTER setting top, compute delta between intended top and actual rect.y, and adjust inline top by that delta. Or place the panel via a top-level portal that bypasses transformed/filtered ancestors.",
+    "Fix Clients Hub drawer (and any other portal drawers rendered as motion.div) so it slides from RIGHT on desktop: either (a) add `[data-testid='client-drawer'] > *` to the CSS drawer opt-out list in index.css:650, (b) change the drawer's outer element to `<aside>`, or (c) add a marker class like `.pj-drawer` on the overlay/panel and exclude it in both useSmartPopups AND index.css desktop modal rules.",
+    "Add a ResizeObserver in useSmartPopups so panels that grow after the 250ms reclamp still get clamped."
+  ],
+  "critical_code_review_comments": [
+    "useSmartPopups.js:33-40 — reclamp only fires ONCE at 250ms; if modal content loads/expands later (async data, image load), panel can grow and never be re-clamped. Add ResizeObserver on the panel + window resize listener.",
+    "useSmartPopups.js:26 — `top = Math.min(Math.max(m, click.y + 14), Math.max(m, vh - h - m))` uses viewport coords for click.y BUT sets `panel.style.top` which is relative to nearest positioned/filtered ancestor. When any ancestor has transform/filter (framer-motion is heavily used), position:fixed becomes scoped and top becomes offset. Detect scoped containing block via `panel.offsetParent` or compare intended vs rect.y after paint and correct.",
+    "useSmartPopups.js:48 — overlay opt-out only checks 'justify-end' or 'items-stretch' but NOT `[data-testid$='-drawer']` or `<aside>`. Consider adding testid pattern check as belt-and-suspenders.",
+    "index.css:630-655 — desktop modal centering rule is too aggressive; it turns every full-screen overlay into a centered modal unless the child is `<aside>`. This has already broken the Clients drawer. Better: opt out by class (e.g. `.pj-drawer`) or by parent testid pattern.",
+    "Minor: `useSmartPopups.js:15` uses `pointerdown` capture; if a modal opens via keyboard (Enter on a focused button, or programmatic dispatch), click.x/click.y stays at last mouse position which may be stale — for keyboard-triggered opens, fall back to the trigger button's boundingClientRect."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (frontend-only per request)", "frontend": "~70% (smart-pop repositioning WORKS but 8px off-bottom; drawer exclusion from JS repositioning WORKS but drawer still centered by legacy CSS; swipe removal fully verified)"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 (super_admin, from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None. HR-Letters modal form was filled with 'TEST_Smart_Popup_User' but Cancel was clicked (no HR letter created).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Two fixes pending: (1) useSmartPopups offset compensation for scoped containing blocks (fixed-position-under-filter/transform ancestor) — repro at 1920x800 on /app/hr-letters → hrl-new (inline top=218 but rect.y=238, off by ~20px); (2) Clients drawer centered instead of right — index.css:630-655 opt-out only matches <aside>, needs to opt-out `[data-testid='client-drawer']` or use a marker class. To re-verify after fix: repeat the pj-smart-pop bounding-box check (bottom <= vh - 4) and check drawer child rect.right approx = vw. The MutationObserver approach + .pj-smart-pop class assignment + swipe-removal + modal open/close cycle are all working correctly.",
+  "rca of the issue": "Bug 1 (8px overflow): position:fixed panels are affected by ancestor transforms/filters (spec CSS: filter, transform, perspective, will-change:transform/filter, contain:paint/layout create a containing block for fixed). AppShell/framer-motion likely applies filter:blur(0px) somewhere (detected in ancestor chain), so the panel's `style.top: 218px` resolves relative to that ancestor, not viewport — actual rect.y = 218 + ancestor_offset ≈ 238. The reclamp reads the same offset math and can't self-correct without measuring rect vs inline. Bug 2 (drawer centered): index.css desktop rule at line 631 force-applies justify-content:center + align-items:center to ALL .fixed.inset-0.z-50, overriding tailwind's justify-end. Opt-out selector `> aside` doesn't match the ClientsHub drawer's `<motion.div>` child. useSmartPopups correctly excludes this overlay (justify-end check), but the CSS still corrupts the drawer's positioning."
+}

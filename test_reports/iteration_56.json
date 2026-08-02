@@ -1,0 +1,47 @@
+{
+  "summary": "Iter56 — Contracts branded PDF + client email endpoints. Backend: 11/11 pytest passed (test_contracts_iter56.py) covering PDF for existing + freshly created contract (pdfplumber verified all required tokens: 'Enterprise Q3 2026', 'PJX-2026', '§ 1 Term', '§ 2 Pricing', 'SERVICE PROVIDER', 'CLIENT', 'Contract Value', 'USD 48,000', 'Projexino Solutions Pvt Ltd', 'Page 1 of', '18' tax), route-ordering (GET /contracts/{cid} still returns JSON not PDF), AI draft email in all 3 tones (warm/brief/professional — all returned <p>-wrapped body and PJX-…/for-your-review subject), email validation (empty to → 400, empty subject → 400), Gmail-disconnected → 400 (NOT 500) with 'Gmail' + '/app/settings' hint, email log endpoint {items,total}, and Company Profile GET (letterhead singleton reused). Also ran HR letters regression: 20/20 pass across iter53+54+55. Frontend Playwright: login → contracts config for d11920aac3… → both new header buttons `ctr-btn-download-pdf` (ghost) and `ctr-btn-email-client` (orange) appear BEFORE Suspend/Renew/Cancel (verified DOM order: dlIdx=143 < emIdx=148 < Suspend=152 < Renew=157 < Cancel=163). PDF download via page.expect_download → 90,097 bytes, %PDF header ✓. Email modal prefill ✓ (subject 'PJX-2026-199C86 — Enterprise Q3 2026 for your review', include-pdf checkbox checked, body template). Xino AI draft (tone=warm) → body changed from 324 → 582 chars (real Gemini output). Preview toggle: textarea↔preview swap works. Send validation toasts fire ('Please add at least one recipient in \\'To\\'', 'Subject is required'). Gmail-disconnected: backend correctly returns HTTP 400, modal stays open ✓, BUT frontend toast shows generic 'AxiosError: Request failed with status code 400' instead of the friendly 400-detail (Gmail credentials invalid — reconnect from /app/settings). Close (X) button dismisses modal.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/contracts", "issue": "Nested `pricing` sub-object in create payload is ignored — created contracts default to USD/0. Users must PATCH pricing afterwards (matches Section 2 UI flow, but is not obvious to API consumers). Documented workaround in test."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "EmailContractModal.send()", "issue": "On send failure, toast surfaces raw AxiosError text ('AxiosError: Request failed with status code 400') instead of the backend's friendly detail message ('Gmail credentials invalid — please reconnect from /app/settings'). Extract `err?.response?.data?.detail || err.message` in the catch block.", "selector": "[data-testid=ctr-email-send]", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_contracts_iter56.py",
+    "/app/test_reports/pytest/iter56_contracts.xml",
+    "/app/test_reports/pytest/iter56_regression.xml"
+  ],
+  "action_items": [
+    "In EmailContractModal.send() catch block, replace generic err.message toast with `err?.response?.data?.detail || err.message` so users see the friendly Gmail-disconnected hint pointing to /app/settings.",
+    "(Optional) Document that POST /api/contracts intentionally ignores nested `pricing` — consumers must PATCH after create. Alternatively, allow pricing in create body for API-first users.",
+    "(Pre-existing critical review, from iter55) Backend has no server-side validation of `signature_data_url` — this is a security gap for HR letters; unrelated to iter56 but still outstanding."
+  ],
+  "critical_code_review_comments": [
+    "contracts_module.py `email_contract` catches Gmail refresh failure and returns 400 (good). However `service.users().messages().send(...)` is still wrapped only in a generic Exception → 502; specific Google API errors (auth revoked mid-request, quota) all collapse to 502 with truncated string. Consider inspecting HttpError.resp.status and mapping 401 → 400 for consistency.",
+    "AI draft endpoint does not check `client.email` and uses `client.get('primary_contact') or client.get('contact_name')` — screenshot showed AI addressed 'Hi Naeema' correctly because `naeema` was captured. Fine for now.",
+    "`_render_contract_pdf` calls WeasyPrint synchronously inside an async handler. For a 90 KB PDF this is <100 ms so acceptable, but under load it will block the event loop. Consider `run_in_executor` for isolation.",
+    "Frontend downloadPdf() correctly uses responseType:'blob' + ObjectURL. Missing revokeObjectURL cleanup — a small memory leak per download session. Add URL.revokeObjectURL(url) after the click.",
+    "EmailContractModal — the toast for send-error only exposes err.message. When the backend returns 400 with `detail`, that friendly hint is lost. This is the single blocking action item — see frontend_issues.",
+    "The default HTML body template is inserted into a plain <textarea> and re-parsed as HTML on send — safe because backend accepts raw HTML, but a naive user pasting `<script>` will send it. Consider a lightweight sanitize step server-side before Gmail send."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_contracts_iter56.py (created)",
+    "/app/test_reports/pytest/iter56_contracts.xml (generated)",
+    "/app/test_reports/pytest/iter56_regression.xml (generated)",
+    "/app/test_reports/iteration_56.json (this file)"
+  ],
+  "success_rate": {"backend": "100% (11/11 iter56 + 20/20 hr-letters regression = 31/31)", "frontend": "92% (12/13 Playwright checks — only the toast-detail issue is a real bug; modal stays open + backend 400 verified via network capture)"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 (super_admin) — from /app/memory/test_credentials.md",
+  "seed_data_creation": "Test class TestContractPdf.test_pdf_from_fresh_contract creates a temp client (TEST_iter56_pdfclient) + contract, PATCHes pricing, verifies PDF, then deletes both in finally block. All ephemeral — no residual data. Verified via /api/clients listing after run: only original naeema client remains.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter56 adds branded contract PDF (WeasyPrint, ~90 KB) + client-email drawer to the Contracts module. Shared letterhead singleton (`hr_letter_settings.singleton`) now powers BOTH HR letters and Contracts — do not break that unification. Endpoints: GET /api/contracts/{cid}/pdf, POST /api/contracts/{cid}/ai-draft-email, POST /api/contracts/{cid}/email, GET /api/contracts/{cid}/emails. Frontend testids: ctr-btn-download-pdf, ctr-btn-email-client, ctr-email-modal, ctr-email-{to,cc,subject,tone,ai-draft,body,preview,toggle-preview,include-pdf,send,close}. Playwright helper: use `page.expect_download()` for PDF download testing; use immediate polling for sonner toasts because they auto-dismiss ≤4s. Gmail is disconnected in this env — email send WILL fail with 400 (not 500). The action item for main agent is a 1-line frontend fix to surface `err.response.data.detail` in the send-error toast. Backend testing quirk: POST /api/contracts ignores nested `pricing` — PATCH after create to set currency/value (I documented this pattern in the test file).",
+  "rca of the issue": "N/A — feature verification. Single minor frontend UX bug identified: EmailContractModal.send() catch block uses `err.message` (which axios sets to 'Request failed with status code 400') instead of unwrapping `err.response.data.detail`. Backend correctly emits the friendly Gmail hint per the try/except in contracts_module.py:800-803 — verified via network capture (200ms after click: 400 response). Fix is ~2 LOC in the modal's send handler."
+}

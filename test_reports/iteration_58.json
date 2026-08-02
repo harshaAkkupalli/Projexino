@@ -1,0 +1,50 @@
+{
+  "summary": "Iter58 — HR letters `webSafeLogo` frontend fix VERIFIED, DB singleton MIGRATED to '/projexino-logo.png' via new hrls-logo-reset button, BUT this triggers the anticipated backend PDF regression (WeasyPrint can't resolve the relative path server-side). Frontend Playwright (admin@projexino.com): (1) /app/hr?tab=letters → Anita Sharma offer letter opens, editor renders 3 imgs: 1 = local /projexino-logo.png (768x358 loaded), 2 = data:image/png base64 (2 signature previews), ZERO CDN, ZERO broken. (2) Letterhead settings modal → 1 img = local /projexino-logo.png (768x358 loaded), ZERO CDN. hrls-logo input already shows '/projexino-logo.png' (because the modal's initial state calls webSafeLogo() which normalises the CDN URL). hrls-logo-reset button visible, click → input value = '/projexino-logo.png'. hrls-save closes modal + persists (verified via GET /api/hr/letters/company-profile → logo_url = '/projexino-logo.png'). Backend pytest: 3/3 in iter58_hr_logo + 7/8 iter57 static (only the pre-migration contract-PDF-size assertion now fails — expected). Contract PDF regression numbers (measured with and without the migration): with CDN URL: contract=90,098 B / 2 imgs, hrletter=111,751 B / 5 imgs. With '/projexino-logo.png': contract=21,792 B / 0 imgs, hrletter=43,442 B / 3 imgs. Logo image is silently dropped from every PDF backend renders. PDFs still contain all text (Projexino, company name, contract terms, signatures), just no letterhead logo. Per review instructions, DID NOT restore singleton to CDN — left '/projexino-logo.png' as new default. Main agent needs to update backend to resolve `/xxx` to https://REACT_APP_BACKEND_URL/xxx OR pass base_url= to WeasyPrint HTML() constructor.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/contracts/{cid}/pdf and GET /api/hr/letters/{id}/pdf",
+        "issue": "Logo missing from every backend-rendered PDF. WeasyPrint receives `src='/projexino-logo.png'` from `hr_letter_settings.singleton.logo_url` after the iter58 migration, but WeasyPrint has no base_url so relative paths fail silently. Contract PDF dropped from 90,098 B (2 imgs) → 21,792 B (0 imgs); HR letter PDF dropped from 111,751 B (5 imgs) → 43,442 B (3 imgs — only the 2 signature-block PNGs remain). Fix: in both `hr_letters_module.py` (~line 144) and `contracts_module.py` (~line 502/642), rewrite any logo_url starting with '/' to `f\"{PUBLIC_BASE_URL}{logo_url}\"` where PUBLIC_BASE_URL comes from `os.environ.get('REACT_APP_BACKEND_URL')` or a new `BACKEND_PUBLIC_URL` env var; OR pass `base_url=PUBLIC_BASE_URL` to `weasyprint.HTML(string=html, base_url=...)`.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_hr_letters_logo_iter58.py",
+    "/app/backend/tests/test_static_assets_iter57.py",
+    "/app/test_reports/pytest/iter58_hr_logo.xml",
+    "/app/test_reports/pytest/iter58_static.xml"
+  ],
+  "action_items": [
+    "HIGH — Fix WeasyPrint relative-path handling. Two identical call-sites need the change: hr_letters_module.py `logo = profile.get('logo_url') or LOGO_URL` and contracts_module.py `profile['logo_url']`. Simplest patch: `def _absolutise(u): base = os.environ.get('REACT_APP_BACKEND_URL','').rstrip('/'); return f'{base}{u}' if u and u.startswith('/') else u` then wrap both sites. Alternative: `HTML(string=html, base_url=os.environ.get('REACT_APP_BACKEND_URL',''))` — cleanest, one-line change per module. Either fix will restore contract PDF to ~90 KB and hr-letter PDF to ~110 KB with logo intact.",
+    "MEDIUM — After the backend fix lands, flip the two iter58 assertions from `< 30 KB / 0 imgs` to `>= 30 KB / >= 1 img` (or delete iter58 file and re-run iter57)."
+  ],
+  "critical_code_review_comments": [
+    "The frontend `webSafeLogo(url)` helper is correct and minimal: 3 render sites + LetterheadSettingsModal initial state + new reset button. Verified via Playwright — ZERO CDN refs across editor + modal + reload.",
+    "Anticipated backend regression (main-agent note in review) is CONFIRMED. Recommendation: use WeasyPrint's `base_url` argument instead of string-mangling the src — it's the canonical way and also handles any other future relative paths (fonts, external CSS, etc.).",
+    "Once fixed, consider caching the logo bytes directly in the DB singleton (as base64 data-URL) at PUT time — same pattern used for signature blocks. That would make the PDF path independent of the frontend's static-serve availability.",
+    "The iter57 test file `test_static_assets_iter57.py` now has one failing assertion (`test_pdf_still_generates` expects >30 KB). This is expected — it captured the pre-migration state. Either move the assertion to `< 30 KB` (matches current) or add a base_url check that re-passes both states."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_hr_letters_logo_iter58.py (created)",
+    "/app/test_reports/pytest/iter58_hr_logo.xml (generated)",
+    "/app/test_reports/pytest/iter58_static.xml (generated)",
+    "/app/test_reports/iteration_58.json (this file)"
+  ],
+  "success_rate": {
+    "backend": "91% (10/11 across iter57 + iter58 suites — 1 known-expected failure documenting the regression)",
+    "frontend": "100% (webSafeLogo render fix + hrls-logo-reset button + persistence all verified)"
+  },
+  "test_credentials": "admin@projexino.com / Projexino@2026 (super_admin) — from /app/memory/test_credentials.md",
+  "seed_data_creation": "One DB write: PUT /api/hr/letters/company-profile updated `hr_letter_settings.singleton.logo_url` from the CDN URL to '/projexino-logo.png'. Per review instruction, DID NOT restore this. All other data untouched.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter58 landed the frontend webSafeLogo() fix in HrLetters.jsx (3 render sites + modal initial state) and a new hrls-logo-reset button. Frontend is fully verified. THE OPEN ITEM is the backend PDF regression: the singleton is now '/projexino-logo.png' (persisted). WeasyPrint drops the logo image because it can't resolve the relative path server-side. Two fix options in action_items — recommended is `weasyprint.HTML(string=..., base_url=os.environ['REACT_APP_BACKEND_URL'])`. When retesting, GET /api/contracts/d11920aac36d4d4abe6586d8644bc606/pdf should be ~90 KB with 2+ /Image references, and GET /api/hr/letters/{id}/pdf should be ~110 KB with 5+ /Image references. Bump iter58_hr_logo.py assertions accordingly.",
+  "rca of the issue": "REPRODUCTION: (1) Login admin@projexino.com. (2) /app/hr?tab=letters → click Letterhead → hrls-logo-reset → hrls-save. (3) GET /api/contracts/d11920aac36d4d4abe6586d8644bc606/pdf → response size drops from ~90 KB to ~22 KB; grep for /Image in the binary returns 0 hits (logo XObject gone). ROOT CAUSE: hr_letters_module.py:144 and contracts_module.py:642 render `<img src='/projexino-logo.png'>` inside the HTML string passed to `weasyprint.HTML(string=html).write_pdf()`. Without a `base_url=` argument, WeasyPrint can't resolve `/projexino-logo.png` — there's no origin to attach `/` to. It logs a warning and drops the image. The frontend fix (webSafeLogo) works because a browser resolves `/xxx` relative to window.location.origin; WeasyPrint has no such default. FIX (recommended, one line per module): `HTML(string=html, base_url=os.environ.get('REACT_APP_BACKEND_URL','').rstrip('/'))`. That resolves `/projexino-logo.png` → `https://projexino-hub.preview.emergentagent.com/projexino-logo.png` which serves from same-origin static (already verified in iter57 to return 200 image/png). Both PDFs will regain their logo and return to their iter57 baselines."
+}

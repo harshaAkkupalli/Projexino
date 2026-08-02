@@ -1,0 +1,40 @@
+{
+  "summary": "Iter60 VERIFIED — Full CDN migration complete. 40/40 backend pytest passing (test_cdn_migration_iter60.py + test_pdf_logo_iter59.py + test_static_assets_iter57.py). Zero customer-assets.emergentagent.com refs in backend Python outside tests (grep-verified). Frontend HTML at /, /login, /blog, /about, /contact, /services — 0 CDN refs each. Bundle.js has EXACTLY 1 CDN string (the intentional webSafeLogo defensive rewrite in HrLetters.jsx line 36). index.html og:image, twitter:image, JSON-LD `logo` all point to https://www.projexino.com/projexino-logo.png. All 4 og/twitter tags and JSON-LD blocks on Landing, Blog post (testiter26-seo-hub-c3caa1), Location (/app-development-india), Login — 0 CDN, all reference /projexino-logo.png (either absolute origin URL for React pages or www.projexino.com from index.html). Public routes: 2 imgs, 0 CDN, 0 broken. Portal (admin@projexino.com login → /app/dashboard, /app/hr?tab=letters, /app/contracts + Configuration tab): 0 imgs / 0 CDN / 0 broken across the board (portal is text/gradient based). email_module.PROJEXINO_BRAND['logo_url'] resolves to 'https://projexino-hub.preview.emergentagent.com/projexino-logo.png' (absolute, contains /projexino-logo.png, zero CDN). finance._projexino_logo_url() and xino_ai._projexino_logo_url() likewise. Static assets serve 200: /projexino-logo.png (25361 B PNG), /projexino-icon-192.png, /projexino-icon-512.png, /projexino-favicon-32.png, /manifest.json. Regression: contract PDF still 90 KB / 2+ /Image refs; HR letter PDF still 111 KB / 4+ /Image refs; NEW HR letter creation flow still embeds logo (>=40 KB, >=1 img); Finance invoice PDF (4cf4410c-77f5-4070-b3dc-5337460365c4) = 111 KB with 5 /Image refs (2 XObject Image) — logo fetched successfully via finance.py urllib call.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_cdn_migration_iter60.py",
+    "/app/backend/tests/test_pdf_logo_iter59.py",
+    "/app/backend/tests/test_static_assets_iter57.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/iter60_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "finance.py:409 uses `urllib.request.urlopen(PROJEXINO_LOGO, timeout=4)` with the default Python-urllib User-Agent. When I ran this urllib call from OUTSIDE the k8s cluster the WAF returned 403; however from INSIDE the container (where the backend actually runs) the fetch succeeds and the invoice PDF embeds 2 XObject Images (verified). Consider adding an explicit `User-Agent: Projexino-Backend/1.0` header via `urllib.request.Request(url, headers={'User-Agent': ...})` for defense-in-depth if network policy ever changes. Same applies to xino_ai.py:439.",
+    "email_module._projexino_logo_absolute() falls back to '/projexino-logo.png' when PUBLIC_FRONTEND_URL and REACT_APP_BACKEND_URL are BOTH unset. This is a relative path that external email clients cannot resolve. In a fresh env with no config, brand logos in outbound emails would break silently. Consider hard-failing at import time (or logging a WARNING) if neither env var is set, since the whole point of this helper is 'never send relative URLs to external recipients'.",
+    "PROJEXINO_LOGO at finance.py:240 is evaluated ONCE at module import. If PUBLIC_FRONTEND_URL is changed at runtime (e.g. via supervisor restart with new env), stale URL persists. Same as email_module.PROJEXINO_BRAND['logo_url']. This is fine for current deployment but worth noting — xino_ai already does lazy resolution via `_projexino_logo_url()` on every call.",
+    "Two intentional CDN references remain and were intentionally NOT flagged: (1) HrLetters.jsx:36 webSafeLogo() defensive rewrite (correctly identified in problem statement), (2) test_static_assets_iter57.py:97 negative-assertion. Both correct."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_cdn_migration_iter60.py (created — 40 assertions across 9 test classes)",
+    "/app/backend/tests/conftest.py (created — auto-loads /app/backend/.env so tests referencing REACT_APP_BACKEND_URL work under pytest which does not inherit supervisor env)"
+  ],
+  "success_rate": {
+    "backend": "100% (40/40 pytest across iter60 + iter59 + iter57 static regression)",
+    "frontend": "100% (public HTML, bundle.js, DOM scans on Landing/Blog/Location/Login/Dashboard/HR-letters/Contracts+Config — all 0 CDN refs; 0 broken imgs)"
+  },
+  "test_credentials": "admin@projexino.com / Projexino@2026 (super_admin) — from /app/memory/test_credentials.md",
+  "seed_data_creation": "Test_pdf_logo_iter59.py creates one temporary HR letter (offer_letter template, 'Iter59 Test') and deletes it in the finally block. No persistent DB mutation.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter60 closes the full CDN → self-hosted asset migration. All prior iters (57 static assets, 58 frontend HR letters + DB migration, 59 WeasyPrint base_url) preserved. Backend + frontend are fully same-origin for logo/icon assets. The two remaining CDN string occurrences (HrLetters.jsx defensive rewrite + test assertion) are INTENTIONAL and must remain — do NOT flag them. Retain test_cdn_migration_iter60.py in the regression rotation; it covers grep sanity + HTML/bundle scan + email/finance/xino_ai helpers + all PDFs.",
+  "rca of the issue": "N/A — iter60 was pure feature-completion verification of main agent's asset-migration sweep. No bugs found."
+}

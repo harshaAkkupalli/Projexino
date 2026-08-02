@@ -1,0 +1,29 @@
+{
+  "summary": "Iter 79 — Verified 4 features: (1) HR Letters drag-drop signature placement, (2) inline PDF open-in-tab, (3) shareable 14-day public sign flow with unauth PDF + sign + notification + reuse-410, (4) outreach _personalise variable resolution + email_module multipart/mixed attachment structure. 11/11 pytest checks pass. Frontend smoke tested via Playwright: HR Letters editor shows all 4 new buttons (hrl-place-sigs, hrl-share-sign, hrl-open-tab, hrl-download), Share sign copies link + opens QR modal, Placement modal renders PDF via pdfjs canvas with 2 draggable chips, drag places signature box, hrl-unplace clears it. Email Templates Preview → Send test modal auto-detects all 5 {{variables}} from Welcome template (name/role/start_date/login_url/logo_url) as tpl-test-var-* inputs.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter79_hr_letters_placement.py",
+    "/app/test_reports/pytest/iter79.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "outreach._personalise uses double-brace {{var}} regex (matches actual template convention); task brief mentioned single-brace {name} — clarification only, no code change needed. Case-insensitive lookup + alias map (firstname/first_name/name/company/companyname etc.) correctly resolves and unresolved keys are stripped (empty string), so raw braces never reach recipient.",
+    "email_module._do_send builds multipart/mixed only when attachments are present; when none, it flattens related parts onto msg — clean and correct MIME structure verified via constructor test (mixed → [related, application/pdf]).",
+    "hr_letters_module: shareable token TTL 14 days (20160 min) verified. Public POST /sign/{token} correctly (a) marks token used, (b) sets sign_status/last_signed, (c) inserts db.notifications with kind letter_signed for token creator, (d) returns email_notified:false when Gmail not connected (graceful).",
+    "hr_letters_module _brand_html: placed signature blocks with x/y percent → absolute mm positioning on A4. hide_placed flag correctly suppresses placed sigs for placement-preview PDF. All PDF endpoints return 200.",
+    "Minor: HrLetters.jsx frontend route /app/hr-letters redirects to /app/hr?tab=letters (embedded HR module); the ?id= deep-link only works when clicking via the HR module tab, not via direct URL. Not a bug — expected embedded routing."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter79_hr_letters_placement.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@projexino.com / Projexino@2026",
+  "seed_data_creation": "None permanent. Used existing letter 54033f4ea7804938b8f15418b6e5df33. All test-created signature tokens, external signature blocks, sign_status flags, and letter_signed notifications were cleaned via direct db calls at end.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_iter79_hr_letters_placement.py covers PDF inline/attachment/hide_placed, signature x/y placement persistence, shareable token TTL + public GET/PDF/POST/reuse-410/invalid-404, plus static grep-based verification of outreach _personalise regex + email_module MIME builder. Existing letter Anita Sharma (54033f4e...) reused; test writes then cleans placed x/y blocks. Frontend smoke checked HR Letters editor buttons, share-sign QR, placement drag/unplace, Email Templates Preview→Send test variable auto-detection. No blocking issues found.",
+  "rca of the issue": "N/A — all features working as specified. Gmail send not tested (OAuth disconnected per brief)."
+}

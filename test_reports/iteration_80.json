@@ -1,0 +1,34 @@
+{
+  "summary": "Iter 80 — validated future-dating on HR letters/invoices/receipts and inline signature placement. Backend: 14/14 pytest passed (letter PDF contains '15 September 2026', signature x/y persist and PDF has embedded image, invoice future issue_date 2026-11-20 reflected in issued_at and PDF, receipt future receipt_date 2026-12-05 reflected in approved_at and PDF). Frontend: verified admin login, HR letter editor loads, hrl-edit-letterdate is present and visible AFTER expanding the 'Edit details' collapsible (data-testid=hrl-details-toggle), date value 2026-09-15 accepted, save works. Inline placement UI intact: hrl-placement-inline, hrl-placement-tray, hrl-chip-{id}, hrl-placed-{id}, hrl-unplace-{id}, hrl-placement-save all present with the doc preview showing a chip tray and one placed HR-Manager signature. Finance projects list loads fine. All test-created data (1 letter, 1 invoice, 1 receipt) cleaned up in test class TestCleanup.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "HR Letter editor", "issues": ["The 'Letter date' input is hidden behind the 'Edit details' collapsible. Previous testing-agent screenshot reported 'letter date input: 0' because details panel is collapsed by default. Consider opening details section by default OR moving letter_date next to Save so users notice it. Not a bug, UX-only."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter80_dates_and_placement.py",
+    "/app/test_reports/pytest/iter80.xml"
+  ],
+  "action_items": [
+    "Optional UX: surface hrl-edit-letterdate outside the collapsible 'Edit details' pane (or default-expand it) so the letter-date affordance is visible without an extra click."
+  ],
+  "critical_code_review_comments": [
+    "hr_letters_module._apply_letter_date correctly overwrites the pjx-letter-date <p> so future letter_date wins over any body-embedded date — verified via PDF text extraction.",
+    "finance.create_invoice sets issued_at from payload.issue_date safely (falls back to now); invoice PDF uses that value in _build_invoice_pdf line 523 — verified via PDF text.",
+    "finance.create_receipt_manual uses receipt_date for both approved_at and created_at, keeping receipt PDF aligned to the chosen date — verified.",
+    "InlinePlacement patches signature_blocks with x/y persistence through /api/hr/letters/{id} PATCH; letter LetterPatch model accepts them via signature_blocks: List[Dict] — verified round-trip.",
+    "GET /api/hr/letters returns {items: [...]} not a bare list — tests must handle both shapes; not a bug but worth documenting for consumers."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter80_dates_and_placement.py"
+  ],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "100% (all critical selectors present and functional)"},
+  "test_credentials": "admin@projexino.com / Projexino@2026 (used, working)",
+  "seed_data_creation": "Created and cleaned up 1 HR letter, 1 finance invoice, 1 finance receipt via automated tests. Cleanup pass (TestCleanup) executed and passed. Receipt/invoice cleanup uses DELETE endpoints if available; test does not fail if backend lacks a delete endpoint.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 80 confirmed all iter-80 features (future-dated letter/invoice/receipt + inline signature placement) work end-to-end at API and UI level. Notable quirks: (1) hrl-edit-letterdate lives inside a 'Hide/Show details' collapsible controlled by data-testid=hrl-details-toggle — must click that first when writing playwright tests. (2) GET /api/hr/letters returns {items:[...]} not a list. (3) POST /api/finance/receipts accepts finance_id + amount + receipt_date for a standalone receipt. (4) Frontend admin login: use data-testid=login-email/login-password/login-submit and match wait_for_url on /app not /app/**. (5) Gmail is disconnected; email_notified:false is expected."
+}
